@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+data/bot.json
+data/*.db
+data/*.db-journal
+*.log
+
+# binarios y archivos pesados que no van al repo
+cloudflared.exe
+*.zip

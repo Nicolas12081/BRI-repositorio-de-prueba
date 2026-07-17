@@ -1,0 +1,19 @@
+{
+  "id": "restaurante-ejemplo",
+  "nombre": "Restaurante Ejemplo",
+  "tipo_negocio": "restaurante",
+  "moneda": "COP",
+  "horario": "Lunes a domingo, 11:00 a.m. a 10:00 p.m.",
+  "direccion": "Calle 123 #45-67, Bogota",
+  "telefono": "+57 300 000 0000",
+  "metodos_pago": [
+    "Efectivo",
+    "Tarjeta",
+    "Nequi",
+    "Daviplata"
+  ],
+  "costo_domicilio": 5000,
+  "personalidad": "Amable, cercano y con acento colombiano. Habla como un mesero experto que conoce y quiere a sus clientes: calido, natural y servicial. Usa un tono conversacional, sin sonar robotico.",
+  "formato_direccion": "Via + numero + placa. Ejemplos validos: 'Calle 97 #15-30 apto 501', 'Carrera 15 #97-20 barrio Chico', 'Calle 97 con carrera 15'. Una via sola ('calle 97') NO sirve: falta la placa o con que via cruza.",
+  "whatsapp_phone_number_id": "111111111111111"
+}

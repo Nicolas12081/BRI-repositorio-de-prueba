@@ -1,0 +1,10 @@
+[
+  { "nombre": "Audifonos Bluetooth Pro", "precio": 120000, "categoria": "Audio", "descripcion": "Inalambricos, cancelacion de ruido, 30h de bateria.", "imagen": "https://placehold.co/600x400/3b5bdb/ffffff/png?text=Audifonos+Bluetooth" },
+  { "nombre": "Parlante Portatil X2", "precio": 95000, "categoria": "Audio", "descripcion": "Resistente al agua, sonido 360, 12h de bateria.", "imagen": "https://placehold.co/600x400/3b5bdb/ffffff/png?text=Parlante+X2" },
+  { "nombre": "Mouse Inalambrico Silent", "precio": 45000, "categoria": "Accesorios", "descripcion": "Clic silencioso, ergonomico, receptor USB.", "imagen": "https://placehold.co/600x400/2b8a3e/ffffff/png?text=Mouse+Silent" },
+  { "nombre": "Teclado Mecanico RGB", "precio": 180000, "categoria": "Accesorios", "descripcion": "Switches azules, retroiluminado, compacto.", "imagen": "https://placehold.co/600x400/2b8a3e/ffffff/png?text=Teclado+RGB" },
+  { "nombre": "Cargador Rapido 65W", "precio": 65000, "categoria": "Accesorios", "descripcion": "USB-C, carga laptop y celular, tecnologia GaN.", "imagen": "https://placehold.co/600x400/2b8a3e/ffffff/png?text=Cargador+65W" },
+  { "nombre": "Power Bank 20000mAh", "precio": 85000, "categoria": "Energia", "descripcion": "Carga 2 dispositivos, pantalla de nivel, carga rapida.", "imagen": "https://placehold.co/600x400/e8590c/ffffff/png?text=Power+Bank" },
+  { "nombre": "Smartwatch Fit 3", "precio": 150000, "categoria": "Vestibles", "descripcion": "Ritmo cardiaco, oxigeno, notificaciones, resistente al agua.", "imagen": "https://placehold.co/600x400/862e9c/ffffff/png?text=Smartwatch+Fit+3" },
+  { "nombre": "Camara Web Full HD", "precio": 75000, "categoria": "Video", "descripcion": "1080p, microfono integrado, enfoque automatico.", "imagen": "https://placehold.co/600x400/0c8599/ffffff/png?text=Camara+Web" }
+]

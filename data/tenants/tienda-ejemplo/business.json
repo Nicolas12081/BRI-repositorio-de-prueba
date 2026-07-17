@@ -1,0 +1,14 @@
+{
+  "id": "tienda-ejemplo",
+  "nombre": "TecnoMundo",
+  "tipo_negocio": "tienda",
+  "moneda": "COP",
+  "horario": "Lunes a sabado, 9:00 a.m. a 7:00 p.m.",
+  "direccion": "Carrera 50 #10-20, Medellin",
+  "telefono": "+57 301 111 1111",
+  "metodos_pago": ["Efectivo", "Tarjeta", "Nequi", "Transferencia"],
+  "costo_domicilio": 8000,
+  "personalidad": "Vendedor tecnologico amable y practico. Explica claro, sin tecnicismos innecesarios, y ayuda al cliente a elegir el producto que mejor le sirve. Cercano pero profesional.",
+  "formato_direccion": "Via + numero + placa. Ejemplos validos: 'Carrera 50 #10-20 apto 302', 'Calle 30 #45-12 barrio Laureles'. Una via sola ('carrera 50') NO sirve: falta la placa o con que via cruza.",
+  "whatsapp_phone_number_id": "222222222222222"
+}

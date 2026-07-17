@@ -1,0 +1,12 @@
+[
+  { "nombre": "Bandeja Paisa", "precio": 28000, "categoria": "Platos fuertes", "descripcion": "Frijoles, arroz, carne molida, chicharron, huevo, platano maduro, arepa y aguacate.", "imagen": "https://placehold.co/600x400/e8871e/ffffff/png?text=Bandeja+Paisa" },
+  { "nombre": "Ajiaco Santafereno", "precio": 24000, "categoria": "Sopas", "descripcion": "Pollo, tres papas, mazorca, guascas, crema de leche y alcaparras.", "imagen": "https://placehold.co/600x400/e8871e/ffffff/png?text=Ajiaco" },
+  { "nombre": "Churrasco", "precio": 32000, "categoria": "Platos fuertes", "descripcion": "Lomo de res a la parrilla con chimichurri, papa criolla y ensalada.", "imagen": "https://placehold.co/600x400/e8871e/ffffff/png?text=Churrasco" },
+  { "nombre": "Sancocho de Gallina", "precio": 26000, "categoria": "Sopas", "descripcion": "Gallina criolla, yuca, platano y mazorca, con arroz aparte.", "imagen": "https://placehold.co/600x400/e8871e/ffffff/png?text=Sancocho" },
+  { "nombre": "Arepa de Chocolo con Queso", "precio": 9000, "categoria": "Entradas", "descripcion": "Arepa dulce de maiz tierno con queso campesino derretido.", "imagen": "https://placehold.co/600x400/e8871e/ffffff/png?text=Arepa+de+Chocolo" },
+  { "nombre": "Empanadas (x3)", "precio": 8000, "categoria": "Entradas", "descripcion": "Tres empanadas de carne y papa con aji casero.", "imagen": "https://placehold.co/600x400/e8871e/ffffff/png?text=Empanadas" },
+  { "nombre": "Limonada de Coco", "precio": 8000, "categoria": "Bebidas", "descripcion": "Refrescante limonada cremosa de coco.", "imagen": "https://placehold.co/600x400/2aa7d8/ffffff/png?text=Limonada+de+Coco" },
+  { "nombre": "Jugo Natural en Agua", "precio": 6000, "categoria": "Bebidas", "descripcion": "Mora, maracuya, lulo o guanabana.", "imagen": "https://placehold.co/600x400/2aa7d8/ffffff/png?text=Jugo+Natural" },
+  { "nombre": "Gaseosa", "precio": 5000, "categoria": "Bebidas", "descripcion": "Postobon, Coca-Cola o Colombiana.", "imagen": "https://placehold.co/600x400/2aa7d8/ffffff/png?text=Gaseosa" },
+  { "nombre": "Postre de Natas", "precio": 10000, "categoria": "Postres", "descripcion": "Postre tradicional bogotano con brevas y arequipe.", "imagen": "https://placehold.co/600x400/c0398b/ffffff/png?text=Postre+de+Natas" }
+]
