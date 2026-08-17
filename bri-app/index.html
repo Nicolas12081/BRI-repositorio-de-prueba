@@ -1579,6 +1579,7 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
     const content = (text!=null ? text : this.state.draft).trim();
     if(!content || this.state.typing) return;
     const id = this.state.selectedId;
+    if(String(id).charAt(0)==='_'){ this.setState({draft:""}); return; } // estado vacio
     const web = String(id).startsWith('web-');
     // WEB = pruebas (simulas al cliente, el bot responde). Real = TÚ respondes como bri al cliente.
     const role = web ? 'user' : 'bot';
@@ -1607,9 +1608,18 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
-      const leads = await Promise.all(convs.map(c=>this.mapLead(c)));
+      var leads = await Promise.all(convs.map(c=>this.mapLead(c)));
+      // Estado vacio: si aun no hay conversaciones, un lead placeholder evita que
+      // el render intente leer .bucket de un lead inexistente.
+      if(leads.length===0){
+        leads = [{ id:'_empty', name:'Sin conversaciones aún', company:'WhatsApp / chat web', color:'#94a3b8',
+          channel:'wa', pautaId:null, score:0, bucket:'cold', handedOff:false, time:'',
+          reasons:['Aún no hay conversaciones. Cuando un cliente escriba, aparecerá aquí.'],
+          signals:{budget:false,authority:false,need:false,timing:false},
+          msgs:[{role:'bot', text:'Aquí verás las conversaciones de tus clientes en tiempo real.'}] }];
+      }
       this.setState(s=>{
-        const sel = leads.some(l=>l.id===s.selectedId) ? s.selectedId : ((leads[0]&&leads[0].id) || s.selectedId);
+        const sel = leads.some(l=>l.id===s.selectedId) ? s.selectedId : leads[0].id;
         return { leads, selectedId: sel };
       });
     }catch(e){ /* silencioso: reintenta en el proximo poll */ }
@@ -1642,6 +1652,7 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
   async rescore(id){ return this._score(id, true); }
   async scoreOne(id){ return this._score(id, false); } // al abrir: recalifica si cambio
   async _score(id, force){
+    if(String(id).charAt(0)==='_') return; // estado vacio, no hay nada que calificar
     try{
       const lead = await fetch('/api/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, phone:id, force:!!force })}).then(r=>r.json()).then(x=>x.lead);
       if(!lead) return; const sig = lead.signals||{};
