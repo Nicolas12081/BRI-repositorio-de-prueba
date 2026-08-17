@@ -1,0 +1,2440 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Conecta la IA del diseno oficial con nuestro backend real (Bri) -->
+<script>
+  window.claude = {
+    async complete(opts) {
+      const r = await fetch("/api/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: opts && opts.system || "",
+          messages: (opts && opts.messages) || [],
+          max_tokens: (opts && opts.max_tokens) || 500
+        })
+      });
+      if (!r.ok) throw new Error("complete " + r.status);
+      const d = await r.json();
+      return d.completion || "";
+    }
+  };
+</script>
+<!-- Conexion de WhatsApp: se inyecta como tarjeta dentro de la pantalla de Ajustes -->
+<script>
+window.addEventListener('load', function(){
+  var F = "Nunito Sans,system-ui,sans-serif";
+  var I = 'width:100%;border:1px solid #e2e5ec;border-radius:10px;padding:9px 11px;margin:5px 0 12px;font-family:'+F+';font-size:13px;outline:none';
+  var L = 'font-size:12px;font-weight:700;color:#475569';
+
+  async function fill(card){
+    var w = await fetch('/api/whatsapp').then(function(r){return r.json();});
+    var estado = w.conectado ? '<span style="color:#15803d;font-weight:800">● Conectado</span>' : '<span style="color:#b45309;font-weight:800">● Sin conectar</span>';
+    card.innerHTML =
+      '<div style="font-size:14.5px;font-weight:700;margin-bottom:12px">Conexión con WhatsApp &nbsp; '+estado+'</div>'+
+      '<label style="'+L+'">Token de acceso'+(w.hasToken?' (guardado)':'')+'</label>'+
+      '<input id="waTok" type="password" placeholder="'+(w.hasToken?'•••• (vacío = no cambiar)':'EAA...')+'" style="'+I+'">'+
+      '<label style="'+L+'">Verify token</label><input id="waVer" value="'+(w.verifyToken||'')+'" style="'+I+'">'+
+      '<label style="'+L+'">URL pública (túnel)</label><input id="waUrl" value="'+(w.publicBaseUrl||'')+'" style="'+I+'">'+
+      '<label style="'+L+'">Callback URL para Meta</label><input readonly value="'+(w.webhookUrl||'')+'" style="'+I+';background:#f8f9fb">'+
+      '<button id="waSave" style="background:#fd5a07;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:800;cursor:pointer;font-family:'+F+'">Guardar conexión</button> <span id="waMsg" style="font-size:12px;font-weight:700;margin-left:8px"></span>'+
+      '<div style="border-top:1px solid #eef0f4;margin:16px 0 12px"></div>'+
+      '<div style="'+L+';margin-bottom:8px">¿Qué agente responde por cada número?</div>'+
+      w.agentes.map(function(a){return '<div style="display:grid;grid-template-columns:1fr 1.3fr auto;gap:8px;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:700">'+a.nombre+'</span><input id="ag_'+a.id+'" value="'+(a.phone_number_id||'')+'" placeholder="Phone number ID" style="border:1px solid #e2e5ec;border-radius:9px;padding:8px;font-family:'+F+'"><button data-ag="'+a.id+'" style="border:1px solid #e2e5ec;background:#fff;color:#d94d00;border-radius:9px;padding:8px 12px;font-weight:700;cursor:pointer;font-family:'+F+'">Enlazar</button></div>';}).join('');
+    card.querySelector('#waSave').onclick = async function(){
+      var b = { verifyToken: card.querySelector('#waVer').value, publicBaseUrl: card.querySelector('#waUrl').value };
+      var tk = card.querySelector('#waTok').value.trim(); if(tk) b.token = tk;
+      card.querySelector('#waMsg').textContent = 'Guardando...';
+      await fetch('/api/whatsapp', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b)});
+      fill(card);
+    };
+    card.querySelectorAll('[data-ag]').forEach(function(bt){ bt.onclick = async function(){ bt.textContent='...'; await fetch('/api/whatsapp/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId:bt.dataset.ag, phone_number_id: card.querySelector('#ag_'+bt.dataset.ag).value})}); bt.textContent='✓'; setTimeout(function(){bt.textContent='Enlazar';},1200); }; });
+  }
+
+  // Busca un elemento "hoja" cuyo texto sea exactamente el dado (un titulo de tarjeta).
+  function findByText(txt){
+    var all = document.querySelectorAll('div,span');
+    for(var i=0;i<all.length;i++){ if(all[i].childElementCount===0 && (all[i].textContent||"").trim()===txt) return all[i]; }
+    return null;
+  }
+  // Inyecta la conexion como una TARJETA MAS dentro de la pantalla de Ajustes,
+  // ubicandola junto a la tarjeta "Canales conectados" (o "Identidad del bot").
+  function ensure(){
+    if(document.getElementById('wa-conn-card')) return;
+    var h = findByText('Canales conectados') || findByText('Identidad del bot');
+    if(!h) return;                              // Ajustes no esta abierto todavia
+    var col = h.parentElement && h.parentElement.parentElement; // titulo -> tarjeta -> columna
+    if(!col) return;
+    var card = document.createElement('div');
+    card.id = 'wa-conn-card';
+    card.style.cssText = 'background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;font-family:'+F;
+    col.appendChild(card);
+    fill(card);
+  }
+  setInterval(ensure, 700);
+});
+</script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Nunito Sans',system-ui,sans-serif;color:#0f172a;background:#f5f6f8}
+  h1,h2,h3,.brand{font-family:'Comfortaa',sans-serif}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#d5d9e2;border-radius:5px}
+  a{color:#d94d00}a:hover{color:#c24400}
+  @keyframes tdot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
+  .inbox-row:hover{background:#eef0f5 !important}
+  .nav-item:hover{background:#f4f5f8 !important}
+  .tip{position:relative;display:inline-flex;cursor:help;color:#94a3b8;font-style:normal}
+  .tip .tipbox{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;font-size:11.5px;font-weight:500;line-height:1.45;padding:8px 11px;border-radius:8px;width:max-content;max-width:240px;white-space:normal;text-transform:none;letter-spacing:0;opacity:0;visibility:hidden;transition:opacity .12s;pointer-events:none;z-index:300;box-shadow:0 8px 20px rgba(15,23,42,.3)}
+  .tip:hover .tipbox{opacity:1;visibility:visible}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;width:100%;min-width:1180px;overflow:auto">
+
+  <!-- ============ NAV MENU ============ -->
+  <div style="width:218px;flex:none;background:#fbfbfd;border-right:1px solid #eceef3;display:flex;flex-direction:column;padding:14px 10px 12px;z-index:60">
+    <div style="display:flex;flex-direction:column;gap:3px;padding:4px 10px 14px">
+      <img src="assets/bri-mark-color.png" alt="bri" style="height:34px;width:auto;display:block;align-self:flex-start" />
+      <span style="font-size:9.5px;font-weight:600;color:#8f83ad;letter-spacing:.02em">tu chatbot, tu aliado</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div class="nav-item" onClick="{{ setChat }}" style="{{ navChatStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.4-4.1-1L3 20l1.1-4.3A8.5 8.5 0 1 1 21 11.5z"></path><path d="M8.5 10.5h7M8.5 13.5h4"></path></svg>
+        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bandeja de entrada</span>
+        <span style="{{ navBadgeStyle }}">{{ hotCount }}</span>
+      </div>
+      <div class="nav-item" onClick="{{ setPanel }}" style="{{ navPanelStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"></path></svg>
+        <span style="flex:1">Panel de análisis</span>
+      </div>
+      <div class="nav-item" onClick="{{ setAgente }}" style="{{ navAgenteStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H13L13 2z"></path></svg>
+        <span style="flex:1">Agente IA</span>
+      </div>
+      <div class="nav-item" onClick="{{ setContacts }}" style="{{ navContactsStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>
+        <span style="flex:1">Contactos</span>
+      </div>
+      <div class="nav-item" onClick="{{ setCampanas }}" style="{{ navCampanasStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+        <span style="flex:1">Campañas</span>
+      </div>
+    </div>
+
+    <div style="height:1px;background:#eceef3;margin:12px 4px"></div>
+
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div class="nav-item" onClick="{{ setAyuda }}" style="{{ navHelpStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+        <span style="flex:1">Obtener ayuda</span>
+      </div>
+      <div class="nav-item" onClick="{{ setBuscar }}" style="{{ navBuscarStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <span style="flex:1">Buscar</span>
+      </div>
+      <div class="nav-item" onClick="{{ setConfig }}" style="{{ navConfigStyle }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+        <span style="flex:1">Ajustes</span>
+      </div>
+    </div>
+
+    <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 8px;border-top:1px solid #eceef3">
+      <div style="position:relative;flex:none">
+        <div style="width:36px;height:36px;border-radius:50%;background:#c7cdd9;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px">ML</div>
+        <span style="position:absolute;left:-1px;top:-1px;width:10px;height:10px;border-radius:50%;background:#22c55e;border:2px solid #fbfbfd"></span>
+      </div>
+      <div style="min-width:0;line-height:1.25">
+        <div style="font-size:13px;font-weight:700;color:#1f2937">María López</div>
+        <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">maria@bri.chat</div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;flex:1;min-width:0">
+
+  <!-- ============ SIDEBAR / INBOX ============ -->
+  <div style="width:clamp(250px,24vw,296px);flex:none;background:#f6f6f9;border-right:1px solid #eceef3;display:flex;flex-direction:column">
+    <div style="padding:18px 18px 12px;display:flex;align-items:center;gap:10px">
+      <span class="brand" style="font-size:15px;font-weight:700;color:#1f2937">Bandeja de entrada</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:#15803d;background:#e8f8ee;border:1px solid #c6ecd4;padding:4px 10px;border-radius:20px"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e"></span>activo</div>
+    </div>
+
+    <div style="padding:0 14px 12px;display:flex;gap:7px">
+      <div style="flex:1;background:#fff;border:1px solid #e7e9f0;border-radius:11px;padding:9px 8px 8px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#1f2937;line-height:1">{{ hotCount }}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:5px"><span style="width:6px;height:6px;border-radius:50%;background:#16a34a"></span><span style="font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#8b93a5">CASI SEG.</span></div>
+      </div>
+      <div style="flex:1;background:#fff;border:1px solid #e7e9f0;border-radius:11px;padding:9px 8px 8px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#1f2937;line-height:1">{{ warmCount }}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:5px"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b"></span><span style="font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#8b93a5">TAL VEZ</span></div>
+      </div>
+      <div style="flex:1;background:#fff;border:1px solid #e7e9f0;border-radius:11px;padding:9px 8px 8px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#1f2937;line-height:1">{{ coldCount }}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:5px"><span style="width:6px;height:6px;border-radius:50%;background:#94a3b8"></span><span style="font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#8b93a5">POCO PROB.</span></div>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:2px 10px 14px">
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+        <div style="margin-top:14px">
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 8px 9px">
+            <span style="width:8px;height:8px;border-radius:50%;background:{{ g.dot }}"></span>
+            <span style="font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#6b7280">{{ g.label }}</span>
+            <span style="flex:1;height:1px;background:#e7e9f0"></span>
+            <span style="font-size:10.5px;font-weight:700;color:#8b93a5;background:#fff;border:1px solid #e7e9f0;padding:1px 8px;border-radius:10px">{{ g.count }}</span>
+          </div>
+          <sc-for list="{{ g.leads }}" as="ld" hint-placeholder-count="2">
+            <div class="inbox-row" onClick="{{ ld.onSelect }}" style="{{ ld.rowStyle }}">
+              <div style="width:38px;height:38px;flex:none;border-radius:12px;{{ ld.avatarStyle }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">{{ ld.initials }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ld.name }}</span><span style="{{ ld.chBadge }}">{{ ld.chLabel }}</span><span style="{{ ld.handoffTagStyle }}">asesor</span></div>
+                <div style="font-size:11.5px;color:#8b93a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ ld.snippet }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none"><span style="font-size:12.5px;font-weight:800;color:{{ ld.dot }}">{{ ld.scoreLabel }}</span><span style="font-size:10px;color:#a8aebc">{{ ld.time }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ============ CHAT ============ -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#fff">
+    <div style="padding:14px 22px;border-bottom:1px solid #eef0f4;display:flex;align-items:center;gap:12px;flex-wrap:wrap;overflow:hidden">
+      <div style="width:40px;height:40px;flex:none;border-radius:11px;{{ sel.avatarStyle }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px">{{ sel.initials }}</div>
+      <div style="line-height:1.3;min-width:0;flex:1">
+        <div class="brand" style="font-size:15px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sel.name }}</div>
+        <div style="display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#64748b">{{ sel.company }}</span>
+          <span style="{{ sel.chBadge }}">{{ sel.chLabel }}</span>
+          <span style="font-size:11px;font-weight:600;color:#6035d2;background:#ede7fb;padding:2px 8px;border-radius:6px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis">📣 {{ sel.pautaName }}</span>
+        </div>
+      </div>
+      <div style="{{ sel.badgeStyle }}"><span style="width:7px;height:7px;border-radius:50%;background:{{ sel.dot }}"></span>{{ sel.bucketLabel }} · {{ sel.score }}</div>
+      <sc-if value="{{ sel.handedOff }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#d94d00;background:#fff0e7;border:1px solid #ffd8c4;padding:6px 12px;border-radius:9px">🧑‍💼 Atendido por María López</div>
+      </sc-if>
+    </div>
+
+    <div id="sb-scroll" style="flex:1;overflow-y:auto;padding:22px 22px 8px;background:#f8f9fb;display:flex;flex-direction:column;gap:11px">
+      <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="4">
+        <div style="{{ m.rowStyle }}"><div style="{{ m.bubbleStyle }}">{{ m.text }}</div></div>
+      </sc-for>
+      <sc-if value="{{ typing }}" hint-placeholder-val="{{ false }}">
+        <div style="align-self:flex-start;display:flex;align-items:center;gap:5px;padding:11px 14px;background:#fff;border:1px solid #eaecf1;border-radius:14px 14px 14px 4px">
+          <span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:tdot 1.2s infinite"></span>
+          <span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:tdot 1.2s infinite .2s"></span>
+          <span style="width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:tdot 1.2s infinite .4s"></span>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="padding:12px 20px 18px;border-top:1px solid #eef0f4">
+      <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="3">
+        <span onClick="{{ s.onClick }}" style="display:inline-flex;margin:0 7px 9px 0;font-size:12.5px;font-weight:500;color:#d94d00;background:#fff0e7;border:1px solid #ffd8c4;padding:6px 12px;border-radius:20px;cursor:pointer">{{ s.text }}</span>
+      </sc-for>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input id="chat-attach" type="file" onChange="{{ onAttach }}" style="display:none" />
+        <label for="chat-attach" style="font-size:19px;color:#94a3b8;cursor:pointer">📎</label>
+        <input value="{{ draft }}" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" placeholder="Responde como bri al cliente…" style="flex:1;border:1px solid #e2e5ec;background:#f8f9fb;border-radius:12px;padding:12px 15px;font-size:13.5px;font-family:inherit;outline:none;color:#0f172a" />
+        <div onClick="{{ onSend }}" style="width:42px;height:42px;flex:none;border-radius:12px;background:#fd5a07;display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;cursor:pointer">➤</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ QUALIFICATION PANEL ============ -->
+  <div style="width:clamp(264px,25vw,312px);flex:none;background:#fff;border-left:1px solid #eef0f4;display:flex;flex-direction:column;overflow-y:auto">
+    <div style="padding:20px 20px 8px;font-size:13px;font-weight:700;color:#334155;letter-spacing:.3px;text-transform:uppercase">Calificación IA</div>
+
+    <div style="padding:6px 20px 18px;display:flex;flex-direction:column;align-items:center;gap:10px">
+      <div style="{{ sel.ringStyle }}">
+        <div style="width:104px;height:104px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-size:30px;font-weight:700;line-height:1;color:{{ sel.dot }}">{{ sel.score }}</div>
+          <div style="font-size:10.5px;color:#94a3b8;margin-top:2px">/ 100</div>
+        </div>
+      </div>
+      <div style="{{ sel.pillStyle }}"><span style="width:8px;height:8px;border-radius:50%;background:{{ sel.dot }}"></span>{{ sel.bucketLabel }}</div>
+    </div>
+
+    <div style="padding:0 20px 18px">
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:10px">SEÑALES DE COMPRA</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <sc-for list="{{ sel.signals }}" as="sg" hint-placeholder-count="4">
+          <div style="{{ sg.style }}"><span>{{ sg.mark }}</span>{{ sg.label }}</div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="padding:0 20px 18px">
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:10px">POR QUÉ ESTA CLASIFICACIÓN</div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <sc-for list="{{ sel.reasons }}" as="r" hint-placeholder-count="3">
+          <div style="display:flex;gap:9px;font-size:12.5px;line-height:1.45;color:#334155"><span style="color:{{ sel.dot }};font-weight:700;flex:none">›</span><span>{{ r }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="margin-top:auto;padding:16px 20px 20px;border-top:1px solid #eef0f4;display:flex;flex-direction:column;gap:9px">
+      <div style="font-size:11.5px;color:#94a3b8;line-height:1.4">{{ sel.recommendation }}</div>
+      <div onClick="{{ onTakeOver }}" style="{{ sel.handoffBtnStyle }}">{{ sel.handoffBtnLabel }}</div>
+    </div>
+  </div>
+
+  </div>
+  </sc-if>
+
+  <!-- ============ PANEL DE ANÁLISIS ============ -->
+  <sc-if value="{{ isPanel }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#f5f6f8;overflow-y:auto">
+    <div style="padding:18px 28px;background:#fff;border-bottom:1px solid #eef0f4;display:flex;align-items:center;gap:14px">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px"><span class="brand" style="font-size:19px;font-weight:700;letter-spacing:-.01em">Panel de ventas</span><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#15803d;background:#ecfdf3;border:1px solid #bbf7d0;padding:3px 9px;border-radius:20px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e"></span>EN VIVO</span></div>
+        <div style="font-size:12.5px;color:#64748b;margin-top:3px">Análisis del bot en tiempo real</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:2px;background:#eef0f4;padding:3px;border-radius:10px">
+        <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3">
+          <span onClick="{{ r.onClick }}" style="{{ r.style }}">{{ r.label }}</span>
+        </sc-for>
+      </div>
+      <div onClick="{{ onExport }}" title="Descargar reporte CSV" style="display:flex;align-items:center;gap:6px;padding:8px 15px;border-radius:10px;font-size:12.5px;font-weight:600;color:#fff;background:#fd5a07;cursor:pointer">⤓ Exportar</div>
+    </div>
+
+    <div style="padding:24px 28px;display:flex;flex-direction:column;gap:18px;width:100%;max-width:1080px">
+      <!-- KPIs -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:16px 18px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:#64748b;font-weight:500">Chats</span><span style="font-size:11px;font-weight:700;color:#15803d;background:#ecfdf3;padding:2px 8px;border-radius:12px">↑ 8%</span></div>
+          <div style="font-size:27px;font-weight:700;letter-spacing:-.6px;margin-top:8px">{{ metrics.chats }}</div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:3px">vs. periodo anterior</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:16px 18px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:#64748b;font-weight:500">Conversión estimada</span><span style="font-size:11px;font-weight:700;color:#15803d;background:#ecfdf3;padding:2px 8px;border-radius:12px">↑ 3 pts</span></div>
+          <div style="font-size:27px;font-weight:700;letter-spacing:-.6px;margin-top:8px;color:#16a34a">{{ metrics.conversion }}%</div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:3px">leads casi seguros / total</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:16px 18px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:#64748b;font-weight:500">Casi seguros</span><span style="font-size:11px;font-weight:700;color:#15803d;background:#ecfdf3;padding:2px 8px;border-radius:12px">↑ 2</span></div>
+          <div style="font-size:27px;font-weight:700;letter-spacing:-.6px;margin-top:8px">{{ metrics.hot }}</div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:3px">listos para el equipo</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:16px 18px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:#64748b;font-weight:500">Score medio</span><span style="font-size:11px;font-weight:700;color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:12px">estable</span></div>
+          <div style="font-size:27px;font-weight:700;letter-spacing:-.6px;margin-top:8px">{{ metrics.avg }}</div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:3px">calificación IA · 0-100</div>
+        </div>
+      </div>
+
+      <!-- gráfica interactiva -->
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <div style="font-size:14.5px;font-weight:700">Conversaciones</div>
+          <div style="font-size:12px;color:#94a3b8">pasa el cursor por las barras</div>
+          <div style="margin-left:auto;font-size:12.5px;color:#64748b"><b style="color:#0f172a;font-size:17px">{{ chartTotal }}</b> en total</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:185px;padding-top:16px">
+          <sc-for list="{{ bars }}" as="b" hint-placeholder-count="8">
+            <div onMouseEnter="{{ b.onEnter }}" onMouseLeave="{{ b.onLeave }}" style="{{ b.colStyle }}">
+              <div style="{{ b.tipStyle }}">{{ b.value }}</div>
+              <div style="{{ b.barStyle }}"></div>
+              <div style="{{ b.lblStyle }}">{{ b.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <!-- distribución -->
+        <div style="flex:1.2;min-width:300px;background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:14.5px;font-weight:700">Distribución de leads</div>
+          <div style="display:flex;height:36px;border-radius:9px;overflow:hidden">
+            <div style="{{ metrics.hotSeg }}">{{ metrics.hot }}</div>
+            <div style="{{ metrics.warmSeg }}">{{ metrics.warm }}</div>
+            <div style="{{ metrics.coldSeg }}">{{ metrics.cold }}</div>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569"><span style="width:9px;height:9px;border-radius:3px;background:#16a34a"></span>Casi seguro</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569"><span style="width:9px;height:9px;border-radius:3px;background:#f59e0b"></span>Tal vez</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569"><span style="width:9px;height:9px;border-radius:3px;background:#cbd5e1"></span>Poco probable</span>
+          </div>
+          <div style="font-size:11.5px;color:#94a3b8;line-height:1.5">Se actualiza en vivo con cada mensaje que el bot califica.</div>
+        </div>
+
+        <!-- efectividad -->
+        <div style="flex:1;min-width:280px;background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:18px 20px;display:flex;flex-direction:column;gap:13px">
+          <div style="font-size:14.5px;font-weight:700">Efectividad del mensaje</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px"><span style="color:#475569">Clics en botón</span><span style="font-weight:700">44%</span></div>
+            <div style="height:8px;background:#eef0f4;border-radius:5px;overflow:hidden"><div style="width:44%;height:100%;background:#fd5a07;border-radius:5px"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px"><span style="color:#475569">Mensajes respondidos</span><span style="font-weight:700">81%</span></div>
+            <div style="height:8px;background:#eef0f4;border-radius:5px;overflow:hidden"><div style="width:81%;height:100%;background:#16a34a;border-radius:5px"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px"><span style="color:#475569">Resuelto por IA</span><span style="font-weight:700">92%</span></div>
+            <div style="height:8px;background:#eef0f4;border-radius:5px;overflow:hidden"><div style="width:92%;height:100%;background:#0ea5e9;border-radius:5px"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- rendimiento por pauta -->
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:18px 20px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px"><span style="font-size:14.5px;font-weight:700">Rendimiento por pauta</span><span style="font-size:12px;color:#94a3b8">ordenadas por conversión</span></div>
+        <div style="display:grid;grid-template-columns:2fr .6fr .8fr 1.3fr .9fr .9fr .7fr;gap:10px;padding:0 4px 8px;font-size:10.5px;font-weight:700;letter-spacing:.4px;color:#94a3b8;text-transform:uppercase">
+          <span>Pauta</span><span>Leads</span><span>Casi seg.</span><span>Conversión</span><span>Inversión</span><span>Ventas est.</span><span style="text-align:right">ROI</span>
+        </div>
+        <sc-for list="{{ pautaStats }}" as="p" hint-placeholder-count="3">
+          <div onClick="{{ p.onToggle }}" style="display:grid;grid-template-columns:2fr .6fr .8fr 1.3fr .9fr .9fr .7fr;gap:10px;align-items:center;padding:11px 4px;border-top:1px solid #f1f3f6;cursor:pointer">
+            <div style="min-width:0;display:flex;align-items:center;gap:8px">
+              <span style="color:#94a3b8;font-size:11px;flex:none">{{ p.caret }}</span>
+              <div style="min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{ p.name }}</div><span style="{{ p.chBadge }}">{{ p.chLabel }}</span></div>
+            </div>
+            <span style="font-size:13.5px;font-weight:700">{{ p.leads }}</span>
+            <span style="font-size:13.5px;font-weight:700;color:#16a34a">{{ p.hot }}</span>
+            <div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:7px;background:#eef0f4;border-radius:5px;overflow:hidden"><div style="{{ p.convBar }}"></div></div><span style="font-size:12px;font-weight:700;width:34px">{{ p.conv }}%</span></div>
+            <span style="font-size:13.5px;font-weight:700;color:#475569">{{ p.inv }}</span>
+            <span style="font-size:13.5px;font-weight:700">{{ p.sales }}</span>
+            <span style="font-size:13.5px;font-weight:700;text-align:right;color:{{ p.roiColor }}">{{ p.roi }}</span>
+          </div>
+          <div style="{{ p.detailStyle }}">
+            <div style="flex:1;min-width:110px"><div style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px">Costo por lead</div><div style="font-size:17px;font-weight:700;margin-top:4px">{{ p.dCpl }}</div></div>
+            <div style="flex:1;min-width:110px"><div style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px">Ticket medio</div><div style="font-size:17px;font-weight:700;margin-top:4px">{{ p.dTicket }}</div></div>
+            <div style="flex:1;min-width:110px"><div style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px">Beneficio neto</div><div style="font-size:17px;font-weight:700;margin-top:4px;color:{{ p.dNetColor }}">{{ p.dNet }}</div></div>
+            <div style="flex:1.4;min-width:170px"><div style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px">Desglose de leads</div>
+              <div style="display:flex;gap:7px;margin-top:6px">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#15803d;background:#ecfdf3;padding:4px 10px;border-radius:7px"><span style="width:7px;height:7px;border-radius:50%;background:#16a34a"></span>{{ p.dHot }}</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#b45309;background:#fffbeb;padding:4px 10px;border-radius:7px"><span style="width:7px;height:7px;border-radius:50%;background:#f59e0b"></span>{{ p.dWarm }}</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#64748b;background:#f1f5f9;padding:4px 10px;border-radius:7px"><span style="width:7px;height:7px;border-radius:50%;background:#94a3b8"></span>{{ p.dCold }}</span>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+        <div style="font-size:11.5px;color:#94a3b8;margin-top:10px">Haz clic en una pauta para ver su resumen detallado. Edita nombre, inversión y ticket medio desde el panel de <b>Tweaks</b>.</div>
+      </div>
+
+      <!-- leads a atender -->
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:18px 20px;display:flex;flex-direction:column">
+        <div style="font-size:14.5px;font-weight:700;margin-bottom:10px">Leads a atender por el equipo</div>
+        <sc-for list="{{ attend }}" as="a" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid #f1f3f6">
+            <div style="width:34px;height:34px;flex:none;border-radius:9px;background:{{ a.color }};color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">{{ a.initials }}</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600">{{ a.name }}</div><div style="font-size:11.5px;color:#94a3b8">{{ a.company }}</div></div>
+            <span style="{{ a.badge }}"><span style="width:7px;height:7px;border-radius:50%;background:{{ a.dot }}"></span>{{ a.bucketLabel }}</span>
+            <span style="font-size:15px;font-weight:700;color:{{ a.dot }};width:34px;text-align:right">{{ a.score }}</span>
+            <span onClick="{{ a.onOpen }}" style="font-size:12px;font-weight:600;color:#d94d00;background:#fff0e7;border:1px solid #ffd8c4;padding:6px 13px;border-radius:8px;cursor:pointer;margin-left:6px">Abrir chat</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ CONFIGURACIÓN ============ -->
+  <sc-if value="{{ isConfig }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#f5f6f8;overflow-y:auto">
+    <div style="padding:18px 28px;background:#fff;border-bottom:1px solid #eef0f4">
+      <div class="brand" style="font-size:19px;font-weight:700;letter-spacing:-.01em">Configuración</div>
+      <div style="font-size:12.5px;color:#64748b;margin-top:3px">Los cambios se aplican al instante a las respuestas del bot</div>
+    </div>
+    <div style="padding:24px 28px;display:flex;flex-direction:column;gap:18px;width:100%;max-width:680px">
+
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:16px">
+        <div style="font-size:14.5px;font-weight:700">Identidad del bot</div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12px;font-weight:600;color:#64748b">Nombre del bot</span><input value="{{ cfg.botName }}" onInput="{{ cfg.onBotName }}" style="{{ cfg.inputStyle }}" /></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12px;font-weight:600;color:#64748b">Mensaje de bienvenida (nuevas conversaciones)</span><input value="{{ cfg.welcome }}" onInput="{{ cfg.onWelcome }}" style="{{ cfg.inputStyle }}" /></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:12px;font-weight:600;color:#64748b">Tono de las respuestas</span><div style="display:flex;gap:8px"><sc-for list="{{ cfg.tones }}" as="t" hint-placeholder-count="3"><span onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</span></sc-for></div></div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:14.5px;font-weight:700">Contexto para la IA</span><span style="font-size:11px;color:#94a3b8;margin-left:auto">{{ cfg.contextCount }}</span></div>
+        <div style="font-size:12px;color:#64748b;line-height:1.5">Escribe aquí todo lo que el bot debe saber para vender: productos, precios, promociones, políticas, preguntas frecuentes. El bot solo usará esta información al responder.</div>
+        <textarea value="{{ cfg.context }}" onInput="{{ cfg.onContext }}" placeholder="Ej: Vendemos X. Precios: … Promociones: … Envíos: …" style="{{ cfg.contextStyle }}"></textarea>
+        <div style="font-size:11.5px;color:#94a3b8;background:#f8f9fb;border:1px solid #eef0f4;border-radius:10px;padding:9px 13px">💡 Si un cliente pregunta algo que no está en el contexto, el bot lo admitirá y ofrecerá pasar con un asesor.</div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:14.5px;font-weight:700">Calificación IA</div>
+        <div style="font-size:12px;font-weight:600;color:#64748b">Umbral para marcar un lead como "Casi seguro"</div>
+        <div style="display:flex;gap:8px"><sc-for list="{{ cfg.ths }}" as="t" hint-placeholder-count="3"><span onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</span></sc-for></div>
+        <div style="font-size:12px;color:#94a3b8;background:#f8f9fb;border:1px solid #eef0f4;border-radius:10px;padding:10px 13px">🟢 Casi seguro: {{ cfg.hotMin }}–100 · 🟡 Tal vez: 40–{{ cfg.hotMax }} · ⚪ Poco probable: 0–39</div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:14.5px;font-weight:700;margin-bottom:8px">Canales conectados</div>
+        <sc-for list="{{ cfg.channels }}" as="c" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #f1f3f6">
+            <div style="flex:1"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13.5px;font-weight:600">{{ c.name }}</span><span style="{{ c.statusStyle }}">{{ c.status }}</span></div><div style="font-size:11.5px;color:#94a3b8;margin-top:2px">{{ c.desc }}</div></div>
+            <div onClick="{{ c.onToggle }}" style="{{ c.trackStyle }}"><div style="{{ c.knobStyle }}"></div></div>
+          </div>
+        </sc-for>
+        <div style="font-size:11.5px;color:#94a3b8;margin-top:8px">Las pautas (nombre, inversión y ticket medio) se editan desde el panel de <b>Tweaks</b>.</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ CAMPAÑAS ============ -->
+  <sc-if value="{{ isCampanas }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;min-width:0">
+    <!-- subnav campañas -->
+    <div style="width:206px;flex:none;background:#fff;border-right:1px solid #eceef3;overflow-y:auto;padding:18px 12px 16px">
+      <sc-for list="{{ camp.nav }}" as="i" hint-placeholder-count="8">
+        <div onClick="{{ i.onClick }}" style="{{ i.style }}"><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.label }}</span><span style="{{ i.badgeStyle }}">{{ i.badge }}</span></div>
+      </sc-for>
+    </div>
+    <!-- principal -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#f5f6f8;overflow-y:auto">
+      <div style="padding:15px 24px;background:#fff;border-bottom:1px solid #eef0f4;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span class="brand" style="font-size:15px;font-weight:700;color:#1f2937">✉ Campañas</span>
+        <input value="{{ camp.search }}" onInput="{{ camp.onSearch }}" placeholder="🔍 Búsqueda" style="width:230px;border:1px solid #e2e5ec;background:#f8f9fb;border-radius:10px;padding:9px 13px;font-size:12.5px;font-family:inherit;outline:none;color:#0f172a" />
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <span onClick="{{ camp.onDocs }}" style="white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:8px 15px;border-radius:9px;cursor:pointer">? Documentación</span>
+          <span onClick="{{ camp.onNew }}" style="white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:#2a1263;padding:8px 15px;border-radius:9px;cursor:pointer">⊕ Nueva campaña</span>
+          <span onClick="{{ camp.onActions }}" style="white-space:nowrap;font-size:12.5px;font-weight:700;color:#475569;background:#fff;border:1px solid #e2e5ec;padding:8px 15px;border-radius:9px;cursor:pointer">Acciones ▾</span>
+        </div>
+      </div>
+      <!-- galería de plantillas -->
+      <sc-if value="{{ camp.showTpls }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:20px 24px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start">
+        <div style="width:330px;background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);overflow:hidden">
+          <div style="height:210px;background:#f5f6f8;padding:14px;overflow:hidden;position:relative">
+            <div style="background:#fff;border-radius:10px;box-shadow:0 4px 14px rgba(15,23,42,.08);overflow:hidden">
+              <div style="background:#2a1263;padding:14px;display:flex;justify-content:center"><img src="assets/bri-mark.png" alt="bri" style="height:22px" /></div>
+              <div style="padding:14px;text-align:center">
+                <div style="font-size:13px;font-weight:800;color:#1f2937">¡Hola! 👋 Bienvenido a bri</div>
+                <div style="font-size:10.5px;color:#94a3b8;margin-top:5px;font-style:italic">Gracias por tu interés. Preparamos esta plantilla para que empieces fácil.</div>
+                <div style="display:inline-block;margin-top:10px;font-size:10.5px;font-weight:800;color:#fff;background:#fd5a07;padding:6px 14px;border-radius:7px">Ver planes →</div>
+              </div>
+            </div>
+            <div style="position:absolute;inset:auto 0 0 0;height:44px;background:linear-gradient(transparent,#f5f6f8)"></div>
+          </div>
+          <div style="padding:13px 15px;display:flex;align-items:center;gap:8px">
+            <span style="flex:1;font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bienvenida con logo</span>
+            <span style="flex:none;font-size:10px;font-weight:800;color:#fff;background:#8b5cf6;padding:3px 8px;border-radius:6px">HTML</span>
+            <span style="flex:none;font-size:10px;font-weight:800;color:#fff;background:#2a1263;padding:3px 8px;border-radius:6px">bri</span>
+            <span onClick="{{ camp.onUse1 }}" style="flex:none;font-size:11.5px;font-weight:700;color:#fff;background:#6035d2;padding:6px 12px;border-radius:8px;cursor:pointer">Usar</span>
+          </div>
+        </div>
+        <div style="width:330px;background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);overflow:hidden">
+          <div style="height:210px;background:#f5f6f8;padding:16px;overflow:hidden;position:relative;font-size:11.5px;line-height:1.7;color:#475569">
+            <div style="font-weight:800;color:#1f2937">¡Hola [nombre]! 😊 Soy bri, tu asistente de ventas.</div>
+            <div style="font-style:italic;margin-top:8px">Vimos que te interesó el <b>Plan Pro</b> y queremos ayudarte a decidir.</div>
+            <div style="margin-top:8px">✅ 14 días de prueba gratis, sin tarjeta<br />✅ Analítica avanzada incluida<br />✅ Soporte en español</div>
+            <div style="margin-top:8px">¿Te agendo una <b>demo de 15 minutos</b> esta semana? Responde este mensaje y coordinamos.</div>
+            <div style="position:absolute;inset:auto 0 0 0;height:44px;background:linear-gradient(transparent,#f5f6f8)"></div>
+          </div>
+          <div style="padding:13px 15px;display:flex;align-items:center;gap:8px">
+            <span style="flex:1;font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Seguimiento de lead</span>
+            <span style="flex:none;font-size:10px;font-weight:800;color:#fff;background:#0ea5e9;padding:3px 8px;border-radius:6px">MD</span>
+            <span style="flex:none;font-size:10px;font-weight:800;color:#fff;background:#2a1263;padding:3px 8px;border-radius:6px">bri</span>
+            <span onClick="{{ camp.onUse2 }}" style="flex:none;font-size:11.5px;font-weight:700;color:#fff;background:#6035d2;padding:6px 12px;border-radius:8px;cursor:pointer">Usar</span>
+          </div>
+        </div>
+        <sc-for list="{{ camp.ownTpls }}" as="t" hint-placeholder-count="0">
+          <div style="width:330px;background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);overflow:hidden">
+            <sc-if value="{{ t.notEditing }}" hint-placeholder-val="{{ true }}">
+              <div style="height:210px;background:#f5f6f8;padding:16px;overflow:hidden;position:relative;font-size:11.5px;line-height:1.7;color:#475569">{{ t.body }}<div style="position:absolute;inset:auto 0 0 0;height:44px;background:linear-gradient(transparent,#f5f6f8)"></div></div>
+            </sc-if>
+            <sc-if value="{{ t.editing }}" hint-placeholder-val="{{ false }}">
+              <div style="height:210px;background:#faf8ff;padding:12px;display:flex;flex-direction:column;gap:8px">
+                <input value="{{ t.editName }}" onInput="{{ t.onEditName }}" placeholder="Nombre de la plantilla" style="border:1px solid #c8b8f0;background:#fff;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;font-family:inherit;outline:none;color:#0f172a" />
+                <textarea value="{{ t.editBody }}" onInput="{{ t.onEditBody }}" placeholder="Mensaje… usa [nombre] para personalizar" style="flex:1;border:1px solid #c8b8f0;background:#fff;border-radius:9px;padding:9px 11px;font-size:11.5px;line-height:1.55;font-family:inherit;outline:none;color:#0f172a;resize:none"></textarea>
+                <span style="font-size:10.5px;color:#94a3b8">[nombre] se reemplaza por el nombre de cada contacto</span>
+              </div>
+            </sc-if>
+            <div style="padding:13px 15px;display:flex;align-items:center;gap:8px">
+              <span style="flex:1;font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</span>
+              <span style="flex:none;font-size:10px;font-weight:800;color:#475569;background:#eef0f4;padding:3px 8px;border-radius:6px">Tuya</span>
+              <sc-if value="{{ t.notEditing }}" hint-placeholder-val="{{ true }}">
+                <span onClick="{{ t.onEdit }}" style="flex:none;font-size:11.5px;font-weight:700;color:#475569;border:1px solid #e2e5ec;padding:6px 10px;border-radius:8px;cursor:pointer">✎</span>
+                <span onClick="{{ t.onUse }}" style="flex:none;font-size:11.5px;font-weight:700;color:#fff;background:#6035d2;padding:6px 12px;border-radius:8px;cursor:pointer">Usar</span>
+              </sc-if>
+              <sc-if value="{{ t.editing }}" hint-placeholder-val="{{ false }}">
+                <span onClick="{{ t.onSave }}" style="flex:none;font-size:11.5px;font-weight:700;color:#fff;background:#16a34a;padding:6px 14px;border-radius:8px;cursor:pointer">✓ Guardar</span>
+              </sc-if>
+              <span onClick="{{ t.onDelete }}" style="flex:none;font-size:11.5px;font-weight:700;color:#94a3b8;border:1px solid #e2e5ec;padding:6px 9px;border-radius:8px;cursor:pointer">✕</span>
+            </div>
+          </div>
+        </sc-for>
+        <div onClick="{{ camp.onNewTpl }}" style="width:330px;min-height:120px;border:1.5px dashed #c8b8f0;background:#faf8ff;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:24px">
+          <span style="font-size:20px;color:#6035d2">⊕</span>
+          <span style="font-size:13px;font-weight:700;color:#475569">Crear plantilla propia</span>
+          <span style="font-size:11.5px;color:#94a3b8">Duplica la de seguimiento y edítala</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ camp.showList }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:20px 24px">
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.2fr 1.2fr;gap:8px;align-items:center;padding:12px 18px;border-bottom:1px solid #eef0f4;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8b93a5">
+            <span>🏷 Nombre de la campaña</span><span>ⓘ Estado</span><span>👥 Contactos</span><span>🕓 Última act.</span><span style="text-align:right">Acciones</span>
+          </div>
+          <sc-if value="{{ camp.empty }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:50px 30px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
+              <div style="width:74px;height:74px;border-radius:20px;background:linear-gradient(140deg,#ede7fb,#fff0e7);display:flex;align-items:center;justify-content:center;font-size:30px">📬</div>
+              <div class="brand" style="font-size:16.5px;font-weight:700;color:#1f2937;margin-top:6px">No tienes ninguna campaña.</div>
+              <div style="font-size:13px;color:#64748b;line-height:1.6;max-width:420px">Las campañas se utilizan para enviar mensajes a contactos específicos. ¡Crea tu primera campaña!</div>
+              <span onClick="{{ camp.onNew }}" style="font-size:13px;font-weight:700;color:#fff;background:#6035d2;padding:11px 22px;border-radius:10px;cursor:pointer;margin-top:8px">⊕ Nueva campaña</span>
+            </div>
+          </sc-if>
+          <sc-for list="{{ camp.rows }}" as="c" hint-placeholder-count="0">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.2fr 1.2fr;gap:8px;align-items:center;padding:13px 18px;border-bottom:1px solid #f4f5f8">
+              <span style="display:flex;align-items:center;gap:9px;min-width:0"><span style="flex:none;width:30px;height:30px;border-radius:9px;background:#ede7fb;display:flex;align-items:center;justify-content:center;font-size:13px">✉</span><span style="font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span></span>
+              <span style="{{ c.estadoStyle }}">{{ c.estado }}</span>
+              <span style="font-size:13px;font-weight:700;color:#475569">{{ c.contacts }}</span>
+              <span style="font-size:12px;color:#8b93a5">{{ c.updated }}</span>
+              <span style="display:flex;gap:7px;justify-content:flex-end">
+                <span onClick="{{ c.onSend }}" style="{{ c.sendStyle }}">{{ c.sendLabel }}</span>
+                <span onClick="{{ c.onDelete }}" style="font-size:11.5px;font-weight:700;color:#94a3b8;background:#fff;border:1px solid #e2e5ec;padding:6px 11px;border-radius:8px;cursor:pointer">✕</span>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ BUSCAR ============ -->
+  <sc-if value="{{ isBuscar }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#f5f6f8;overflow-y:auto">
+    <div style="padding:18px 28px;background:#fff;border-bottom:1px solid #eef0f4">
+      <div class="brand" style="font-size:19px;font-weight:700;color:#1f2937">Buscar</div>
+      <div style="font-size:12.5px;color:#64748b;margin-top:3px">Encuentra conversaciones y mensajes en toda la bandeja</div>
+    </div>
+    <div style="padding:22px 28px;max-width:640px;display:flex;flex-direction:column;gap:14px">
+      <input value="{{ bus.q }}" onInput="{{ bus.onQ }}" placeholder="🔍 Busca por nombre, empresa o texto del mensaje…" style="border:1px solid #e2e5ec;background:#fff;border-radius:12px;padding:13px 16px;font-size:14px;font-family:inherit;outline:none;color:#0f172a;box-shadow:0 1px 3px rgba(15,23,42,.05)" />
+      <sc-if value="{{ bus.emptyQ }}" hint-placeholder-val="{{ true }}">
+        <div style="font-size:12.5px;color:#94a3b8">Escribe para buscar en {{ bus.total }} conversaciones…</div>
+      </sc-if>
+      <sc-for list="{{ bus.results }}" as="r" hint-placeholder-count="0">
+        <div onClick="{{ r.onOpen }}" style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e9ebf1;border-radius:12px;padding:13px 15px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <span style="{{ r.avatar }}">{{ r.initials }}</span>
+          <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;color:#1f2937">{{ r.name }}</div><div style="font-size:12px;color:#8b93a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ r.snippet }}</div></div>
+          <span style="flex:none;font-size:12px;font-weight:700;color:#6035d2">Abrir ›</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ bus.noResults }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1.5px dashed #e2e5ec;border-radius:11px;padding:26px;text-align:center;font-size:13px;color:#b3b9c6">Sin resultados para "{{ bus.q }}"</div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ AYUDA ============ -->
+  <sc-if value="{{ isAyuda }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#f5f6f8;overflow-y:auto">
+    <div style="padding:18px 28px;background:#fff;border-bottom:1px solid #eef0f4">
+      <div class="brand" style="font-size:19px;font-weight:700;color:#1f2937">Obtener ayuda</div>
+      <div style="font-size:12.5px;color:#64748b;margin-top:3px">Recursos y soporte de bri</div>
+    </div>
+    <div style="padding:22px 28px;max-width:640px;display:flex;flex-direction:column;gap:12px">
+      <sc-for list="{{ ayudaItems }}" as="h" hint-placeholder-count="4">
+        <div onClick="{{ h.onClick }}" style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e9ebf1;border-radius:13px;padding:15px 17px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <span style="flex:none;width:38px;height:38px;border-radius:11px;background:#ede7fb;display:flex;align-items:center;justify-content:center;font-size:17px">{{ h.icon }}</span>
+          <div style="flex:1"><div style="font-size:13.5px;font-weight:700;color:#1f2937">{{ h.title }}</div><div style="font-size:12px;color:#8b93a5;margin-top:2px">{{ h.desc }}</div></div>
+          <span style="flex:none;color:#b3b9c6">›</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ CONTACTOS ============ -->
+  <sc-if value="{{ isContacts }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#f5f6f8;overflow-y:auto">
+    <sc-if value="{{ con.banner }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:14px;background:#fd5a07;padding:12px 22px">
+        <span onClick="{{ con.onCloseBanner }}" style="flex:none;color:rgba(255,255,255,.8);cursor:pointer;font-size:15px">✕</span>
+        <span style="flex:1;font-size:13px;font-weight:700;color:#fff">¿Ya tienes contactos en otro CRM? Importa todos tus contactos en bri</span>
+        <label for="con-import" style="flex:none;font-size:12.5px;font-weight:700;color:#fd5a07;background:#fff;padding:8px 16px;border-radius:9px;cursor:pointer">Importar contactos</label>
+      </div>
+    </sc-if>
+    <div style="padding:16px 22px;background:#fff;border-bottom:1px solid #eef0f4;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="brand" style="font-size:15px;font-weight:700;color:#1f2937">👥 {{ con.count }} Contactos</span>
+      <input value="{{ con.search }}" onInput="{{ con.onSearch }}" placeholder="🔍 Búsqueda" style="width:240px;border:1px solid #e2e5ec;background:#f8f9fb;border-radius:10px;padding:9px 13px;font-size:12.5px;font-family:inherit;outline:none;color:#0f172a" />
+      <input id="con-import" type="file" accept=".csv,.txt" onChange="{{ con.onImport }}" style="display:none" />
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <span onClick="{{ con.onFilter }}" style="{{ con.filterStyle }}">⚗ {{ con.filterLabel }}</span>
+        <span onClick="{{ con.onNew }}" style="white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:#2a1263;padding:8px 15px;border-radius:9px;cursor:pointer">⊕ Nuevo contacto</span>
+        <span onClick="{{ con.onActions }}" style="white-space:nowrap;font-size:12.5px;font-weight:700;color:#475569;background:#fff;border:1px solid #e2e5ec;padding:8px 15px;border-radius:9px;cursor:pointer">⤓ Exportar CSV</span>
+      </div>
+    </div>
+    <div style="padding:20px 22px">
+      <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);overflow-x:auto">
+        <div style="min-width:920px">
+          <div style="display:grid;grid-template-columns:44px 1.6fr 1.7fr 1.3fr 1.3fr 1.1fr .9fr 1.1fr .9fr;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid #eef0f4;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8b93a5">
+            <span></span><span>👤 Nombre completo</span><span>✉ Correo electrónico</span><span>📍 Ubicación</span><span>🏢 Empresa</span><span>🏷 Segmentos</span><span>🕓 Activo</span><span>☆ Puntuación</span><span>👁 Vista previa</span>
+          </div>
+          <sc-if value="{{ con.empty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:30px;text-align:center;font-size:13px;color:#b3b9c6">Sin resultados para la búsqueda…</div>
+          </sc-if>
+          <sc-for list="{{ con.rows }}" as="r" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:44px 1.6fr 1.7fr 1.3fr 1.3fr 1.1fr .9fr 1.1fr .9fr;gap:8px;align-items:center;padding:11px 14px;border-bottom:1px solid #f4f5f8">
+              <span onClick="{{ r.onCheck }}" style="{{ r.checkStyle }}">{{ r.check }}</span>
+              <span style="display:flex;align-items:center;gap:9px;min-width:0"><span style="{{ r.avatar }}">{{ r.initials }}</span><span style="font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span></span>
+              <span style="font-size:12.5px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.email }}</span>
+              <span style="font-size:12.5px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.location }}</span>
+              <span style="font-size:12.5px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.company }}</span>
+              <span style="{{ r.segStyle }}">{{ r.segment }}</span>
+              <span style="font-size:12px;color:#8b93a5">{{ r.active }}</span>
+              <span style="font-size:13px;letter-spacing:1px;color:#f59e0b">{{ r.stars }}</span>
+              <span onClick="{{ r.onPreview }}" style="font-size:11.5px;font-weight:700;color:#6035d2;background:#ede7fb;padding:6px 11px;border-radius:8px;cursor:pointer;text-align:center;white-space:nowrap">🗗 Vista previa</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ AGENTE IA / PLAYGROUND ============ -->
+  <sc-if value="{{ isAgente }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;min-width:0;background:#f5f6f8">
+
+    <!-- subnav -->
+    <div style="width:206px;flex:none;background:#fff;border-right:1px solid #eceef3;overflow-y:auto;padding:18px 12px 16px">
+      <div class="brand" style="font-size:16.5px;font-weight:700;color:#1f2937;padding:0 8px 6px">Agente de IA</div>
+      <sc-for list="{{ agNav }}" as="i" hint-placeholder-count="8">
+        <div onClick="{{ i.onClick }}" style="{{ i.style }}"><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.label }}</span><span style="{{ i.badgeStyle }}">{{ i.badge }}</span></div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ agIsPlay }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex:1;min-width:0">
+    <!-- centro -->
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:26px 30px">
+      <div style="max-width:560px;display:flex;flex-direction:column;gap:18px">
+        <div>
+          <div class="brand" style="font-size:24px;font-weight:700;color:#1f2937">Área de pruebas <span style="font-weight:500;color:#6b7280">del agente</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.55;margin-top:9px">⚠️ <b style="color:#1f2937">Este es un entorno seguro</b> — prueba al agente sin afectar las conversaciones reales de tus clientes.</div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(92deg,#2a1263,#6035d2);border-radius:13px;padding:13px 16px">
+          <span style="font-size:13px;font-weight:600;color:#fff;font-style:italic;flex:1">Potencia a bri con contexto de tu negocio</span>
+          <div onClick="{{ setConfig }}" style="flex:none;font-size:12.5px;font-weight:700;color:#2a1263;background:#fff;padding:7px 15px;border-radius:9px;cursor:pointer">Empezar ›</div>
+        </div>
+
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:9px">Modelo</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ agModels }}" as="m" hint-placeholder-count="3"><span onClick="{{ m.onClick }}" style="{{ m.style }}">{{ m.label }}</span></sc-for>
+          </div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:8px">ⓘ En automático, bri elige el mejor modelo según la conversación.</div>
+        </div>
+
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:9px">Guía de respuesta</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ agGuides }}" as="g" hint-placeholder-count="3"><span onClick="{{ g.onClick }}" style="{{ g.style }}">{{ g.label }}</span></sc-for>
+          </div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:8px">{{ agGuideHint }}</div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:13px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1f2937">Reiniciar conversación de prueba</div><div style="font-size:11.5px;color:#94a3b8;margin-top:2px">Borra los mensajes del área de pruebas</div></div>
+          <div onClick="{{ agReset }}" style="flex:none;font-size:12.5px;font-weight:700;color:#d94d00;background:#fff0e7;border:1px solid #ffd8c4;padding:7px 14px;border-radius:9px;cursor:pointer">Reiniciar</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- widget de prueba -->
+    <div style="width:clamp(310px,31vw,392px);flex:none;background:linear-gradient(165deg,#31166f 0%,#6035d2 55%,#fd5a07 130%);padding:20px;display:flex">
+      <div style="flex:1;background:#fff;border-radius:18px;box-shadow:0 18px 50px -18px rgba(15,23,42,.5);display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:16px 18px 12px;border-bottom:1px solid #eef0f4;text-align:center">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+            <img src="assets/bri-mark-color.png" alt="bri" style="height:22px;width:auto" />
+            <span class="brand" style="font-size:14px;font-weight:700;color:#1f2937">¿Preguntas? Chatea con bri</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;color:#16a34a;font-weight:600;margin-top:5px"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e"></span>El agente está en línea</div>
+        </div>
+        <div id="ag-scroll" style="flex:1;overflow-y:auto;padding:15px 14px;display:flex;flex-direction:column;gap:9px;background:#fafafc">
+          <sc-for list="{{ agMsgs }}" as="m" hint-placeholder-count="2">
+            <div style="{{ m.rowStyle }}"><div style="{{ m.bubbleStyle }}">{{ m.text }}</div></div>
+          </sc-for>
+          <sc-if value="{{ agTyping }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:flex-start;display:flex;align-items:center;gap:5px;padding:10px 13px;background:#fff;border:1px solid #eaecf1;border-radius:14px 14px 14px 4px">
+              <span style="width:6px;height:6px;background:#94a3b8;border-radius:50%;animation:tdot 1.2s infinite"></span>
+              <span style="width:6px;height:6px;background:#94a3b8;border-radius:50%;animation:tdot 1.2s infinite .2s"></span>
+              <span style="width:6px;height:6px;background:#94a3b8;border-radius:50%;animation:tdot 1.2s infinite .4s"></span>
+            </div>
+          </sc-if>
+        </div>
+        <div style="padding:11px 12px;border-top:1px solid #eef0f4;display:flex;align-items:center;gap:8px">
+          <input value="{{ agDraft }}" onInput="{{ agInput }}" onKeyDown="{{ agKey }}" placeholder="Escribe tu mensaje…" style="flex:1;min-width:0;border:1px solid #e2e5ec;background:#f8f9fb;border-radius:11px;padding:10px 13px;font-size:13px;font-family:inherit;outline:none;color:#0f172a" />
+          <div onClick="{{ agSend }}" style="width:38px;height:38px;flex:none;border-radius:11px;background:#fd5a07;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;cursor:pointer">➤</div>
+        </div>
+        <div style="padding:0 0 10px;text-align:center;font-size:10.5px;color:#b3b9c6">funciona con <b class="brand" style="color:#6035d2">bri</b></div>
+      </div>
+    </div>
+    </div>
+    </sc-if>
+
+    <!-- SUGERENCIAS IA -->
+    <sc-if value="{{ agIsSug }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:44px 30px">
+      <div style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center">
+        <div class="brand" style="font-size:26px;font-weight:700;color:#1f2937">Sugerencias <span style="color:#6035d2">de IA</span></div>
+        <div style="font-size:13.5px;color:#64748b;line-height:1.6;max-width:520px">Descubre formas de mejorar tu agente. bri analiza tu contexto de negocio y propone adiciones, ediciones y eliminaciones para mantenerlo actualizado.</div>
+        <div onClick="{{ agAnalyze }}" style="{{ agAnalyzeStyle }}">{{ agAnalyzeLabel }}</div>
+        <div style="width:100%;display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left">
+          <sc-for list="{{ agSugs }}" as="sg" hint-placeholder-count="2">
+            <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 4px 14px -6px rgba(15,23,42,.12);padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:9px"><span style="flex:none;width:8px;height:8px;border-radius:50%;background:#6035d2"></span><span style="font-size:13.5px;font-weight:700;color:#1f2937">{{ sg.titulo }}</span><span style="{{ sg.statusStyle }}">{{ sg.statusLabel }}</span></div>
+              <div style="font-size:12.5px;color:#64748b;line-height:1.5">{{ sg.detalle }}</div>
+              <div style="font-size:11px;font-weight:700;color:#8b93a5;text-transform:uppercase;letter-spacing:.05em">Respuesta</div>
+              <div style="font-size:12.5px;line-height:1.55;color:#9b1c1c;background:#fdecec;padding:8px 12px;border-radius:9px;text-decoration:line-through">{{ sg.antes }}</div>
+              <div style="font-size:12.5px;line-height:1.55;color:#166534;background:#e8f8ee;padding:8px 12px;border-radius:9px">{{ sg.despues }}</div>
+              <div style="display:flex;gap:8px;margin-top:2px">
+                <span onClick="{{ sg.onKeep }}" style="font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:7px 15px;border-radius:9px;cursor:pointer">✓ Mantener</span>
+                <span onClick="{{ sg.onIgnore }}" style="font-size:12.5px;font-weight:700;color:#475569;background:#fff;border:1px solid #e2e5ec;padding:7px 15px;border-radius:9px;cursor:pointer">✕ Ignorar</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ANALÍTICAS -->
+    <sc-if value="{{ agIsAna }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:860px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:260px">
+            <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Analítica <span style="color:#6035d2">del agente</span></div>
+            <div style="font-size:13px;color:#64748b;line-height:1.55;margin-top:7px">Visualiza el flujo de usuarios y detecta <b style="color:#1f2937">patrones clave de conversación</b>.</div>
+          </div>
+          <div style="flex:none;font-size:12.5px;font-weight:600;color:#475569;background:#fff;border:1px solid #e2e5ec;padding:9px 15px;border-radius:10px">📅 Últimos 7 días</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">» Embudo de conversación</div>
+          <div style="padding:18px;display:flex;flex-direction:column;gap:11px">
+            <sc-for list="{{ agFunnel }}" as="f" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="width:150px;flex:none;font-size:12.5px;font-weight:600;color:#475569">{{ f.label }}</span>
+                <div style="flex:1;height:22px;background:#f1f3f6;border-radius:6px;overflow:hidden"><div style="{{ f.bar }}"></div></div>
+                <span style="width:34px;flex:none;text-align:right;font-size:13px;font-weight:800;color:#1f2937">{{ f.value }}</span>
+              </div>
+            </sc-for>
+            <div style="font-size:11.5px;color:#94a3b8;margin-top:4px">Datos en vivo de la bandeja de entrada.</div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">⚲ Volumen de temas</div>
+          <div style="padding:18px;display:flex;flex-direction:column;gap:11px">
+            <sc-for list="{{ agTopics }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="width:150px;flex:none;font-size:12.5px;font-weight:600;color:#475569">{{ t.label }}</span>
+                <div style="flex:1;height:22px;background:#f1f3f6;border-radius:6px;overflow:hidden"><div style="{{ t.bar }}"></div></div>
+                <span style="width:40px;flex:none;text-align:right;font-size:13px;font-weight:800;color:#1f2937">{{ t.pct }}%</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- CONFIGURACIÓN IA -->
+    <sc-if value="{{ agIsCfg }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:760px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Configuración <span style="color:#6035d2">del agente</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px">Configura cómo aparece tu agente, cómo responde y qué fuentes puede utilizar.</div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">⚙ Identidad del agente</div>
+          <div style="padding:18px;display:flex;flex-direction:column;gap:16px">
+            <div>
+              <div style="font-size:12.5px;font-weight:700;color:#475569;margin-bottom:10px">Logo del agente</div>
+              <div style="display:flex;align-items:center;gap:18px">
+                <div style="{{ ci.logoCircle }}">{{ ci.logoPlaceholder }}</div>
+                <div style="display:flex;flex-direction:column;gap:7px;align-items:flex-start">
+                  <span style="font-size:13px;font-weight:600;color:#1f2937">Sube un logo para tu agente</span>
+                  <span style="font-size:11.5px;color:#94a3b8">Archivo de imagen, máx. 10 MB</span>
+                  <input id="ci-logo-input" type="file" accept="image/*" onChange="{{ ci.onLogo }}" style="display:none" />
+                  <label for="ci-logo-input" style="font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:8px 16px;border-radius:9px;cursor:pointer">Subir imagen</label>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Nombre del agente <span class="tip">ⓘ<span class="tipbox">Así se presentará el agente ante tus clientes en el chat.</span></span></span>
+              <input value="{{ cfg.botName }}" onInput="{{ cfg.onBotName }}" placeholder="Introduce un nombre para tu agente…" style="{{ cfg.inputStyle }}" />
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:center"><span style="font-size:12.5px;font-weight:700;color:#475569">Descripción del negocio</span><span onClick="{{ ci.onGen }}" style="{{ ci.genStyle }}">{{ ci.genLabel }}</span></div>
+              <textarea value="{{ cfg.context }}" onInput="{{ cfg.onContext }}" placeholder="Describe a qué se dedica tu empresa, qué vendes y quiénes son tus clientes." style="{{ cfg.contextStyle }}"></textarea>
+              <span style="font-size:11.5px;color:#94a3b8">{{ ci.charCount }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">✳ Configuración del modelo</div>
+          <div style="padding:18px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Modelo</span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ agModels }}" as="m" hint-placeholder-count="3"><span onClick="{{ m.onClick }}" style="{{ m.style }}">{{ m.label }}</span></sc-for></div>
+              <span style="font-size:11.5px;color:#94a3b8">ⓘ En automático, bri elige el mejor modelo según la conversación.</span>
+            </div>
+            <div style="height:1px;background:#eef0f4"></div>
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onFallback }}" style="{{ ci.fallbackTrack }}"><div style="{{ ci.fallbackKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Habilitar el modelo de respaldo integrado de bri <span class="tip">ⓘ<span class="tipbox">Si el modelo principal falla, bri usa un modelo alterno para no dejar de responder.</span></span></span></div>
+              <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onImages }}" style="{{ ci.imagesTrack }}"><div style="{{ ci.imagesKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Permitir que el agente procese imágenes <span class="tip">ⓘ<span class="tipbox">El agente podrá entender capturas y fotos que envíe el cliente.</span></span></span></div>
+              <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onAudio }}" style="{{ ci.audioTrack }}"><div style="{{ ci.audioKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Permitir que el agente transcriba mensajes de audio <span class="tip">ⓘ<span class="tipbox">Convierte las notas de voz del cliente en texto para poder responderlas.</span></span></span></div>
+            </div>
+            <div style="height:1px;background:#eef0f4"></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Estilo de respuesta</span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ ci.styles }}" as="st" hint-placeholder-count="2"><span onClick="{{ st.onClick }}" style="{{ st.style }}">{{ st.label }}</span></sc-for></div>
+              <span style="font-size:11.5px;color:#94a3b8">{{ ci.styleHint }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Guía de respuesta <span class="tip">ⓘ<span class="tipbox">Qué tan estricto es el agente con la información disponible antes de responder.</span></span></span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ agGuides }}" as="g" hint-placeholder-count="3"><span onClick="{{ g.onClick }}" style="{{ g.style }}">{{ g.label }}</span></sc-for></div>
+              <span style="font-size:11.5px;color:#94a3b8">{{ agGuideHint }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Idioma del agente <span class="tip">ⓘ<span class="tipbox">Idioma de las respuestas; en automático detecta el idioma del cliente.</span></span></span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ ci.langs }}" as="lg" hint-placeholder-count="3"><span onClick="{{ lg.onClick }}" style="{{ lg.style }}">{{ lg.label }}</span></sc-for></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">🗂 Fuentes de datos</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:12.5px;font-weight:700;color:#475569">Fuentes <span class="tip">ⓘ<span class="tipbox">De qué fuentes puede tomar información el agente al responder.</span></span></span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ ci.sources }}" as="so" hint-placeholder-count="3"><span onClick="{{ so.onClick }}" style="{{ so.style }}">{{ so.label }}</span></sc-for></div>
+            <span style="font-size:11.5px;color:#94a3b8">Define de dónde puede tomar información el agente al responder.</span>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">👤 Acceso a los datos del usuario</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onAccSegments }}" style="{{ ci.accSegmentsTrack }}"><div style="{{ ci.accSegmentsKnob }}"></div></div><span style="{{ ci.accSegmentsLbl }}">Permitir acceso a segmentos de conversación y de personas <span class="tip">ⓘ<span class="tipbox">Usa segmentos de contactos y conversaciones para personalizar respuestas.</span></span></span></div>
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onAccLocation }}" style="{{ ci.accLocationTrack }}"><div style="{{ ci.accLocationKnob }}"></div></div><span style="{{ ci.accLocationLbl }}">Permitir acceso a la ubicación del usuario <span class="tip">ⓘ<span class="tipbox">Permite usar la ubicación aproximada del cliente en las respuestas.</span></span></span></div>
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onAccDevice }}" style="{{ ci.accDeviceTrack }}"><div style="{{ ci.accDeviceKnob }}"></div></div><span style="{{ ci.accDeviceLbl }}">Permitir acceso a la información del dispositivo <span class="tip">ⓘ<span class="tipbox">Permite usar el tipo de dispositivo y navegador del cliente.</span></span></span></div>
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onAccCustom }}" style="{{ ci.accCustomTrack }}"><div style="{{ ci.accCustomKnob }}"></div></div><span style="{{ ci.accCustomLbl }}">Permitir acceso a datos personalizados <span class="tip">ⓘ<span class="tipbox">Permite usar campos personalizados de tu CRM u otros sistemas.</span></span></span></div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">💶 Presupuesto por conversación</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onBudget }}" style="{{ ci.budgetTrack }}"><div style="{{ ci.budgetKnob }}"></div></div><span style="{{ ci.budgetLbl }}">Limitar gasto de IA por conversación <span class="tip">ⓘ<span class="tipbox">Detiene el uso de IA cuando una conversación supera el límite definido.</span></span></span></div>
+            <sc-if value="{{ ci.budgetOn }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <span style="font-size:12px;font-weight:600;color:#8b93a5">Límite por conversación (€) <span style="color:#ef4444">*</span></span>
+                <input type="number" value="{{ ci.budgetVal }}" onInput="{{ ci.onBudgetVal }}" style="width:140px;box-sizing:border-box;border:1px solid #e2e5ec;border-radius:10px;padding:10px 13px;font-size:13.5px;font-family:inherit;outline:none;background:#fff;color:#0f172a" />
+              </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">🧑‍💼 Escalado</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onEscNoAns }}" style="{{ ci.escNoAnsTrack }}"><div style="{{ ci.escNoAnsKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Escalar automáticamente cuando bri no encuentre una respuesta <span style="color:#16a34a">✓</span></span></div>
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onEscFrust }}" style="{{ ci.escFrustTrack }}"><div style="{{ ci.escFrustKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Escalar automáticamente cuando el usuario esté frustrado o pida hablar con una persona</span></div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">✓ Resolución automática</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onResSuggest }}" style="{{ ci.resSuggestTrack }}"><div style="{{ ci.resSuggestKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Sugerir resolver la conversación cuando se detecte intención de resolución <span class="tip">ⓘ<span class="tipbox">Cuando el cliente da por resuelto el tema, el agente propone cerrar la conversación.</span></span></span></div>
+            <div style="display:flex;align-items:center;gap:12px"><div onClick="{{ ci.onResAuto }}" style="{{ ci.resAutoTrack }}"><div style="{{ ci.resAutoKnob }}"></div></div><span style="font-size:13.5px;font-weight:600;color:#1f2937">Resolver conversaciones automáticamente tras inactividad del usuario <span class="tip">ⓘ<span class="tipbox">Cierra la conversación automáticamente si el cliente deja de responder.</span></span></span></div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <span style="{{ ci.resLbl }}">Resolver después de <span style="color:#ef4444">*</span></span>
+                <input type="number" value="{{ ci.resDelay }}" onInput="{{ ci.onResDelay }}" disabled="{{ ci.resOff }}" style="{{ ci.resInput }}" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <span style="{{ ci.resLbl }}">Unidad</span>
+                <div style="display:flex;gap:6px"><sc-for list="{{ ci.resUnits }}" as="u" hint-placeholder-count="2"><span onClick="{{ u.onClick }}" style="{{ u.style }}">{{ u.label }}</span></sc-for></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <span onClick="{{ ci.onSupport }}" style="font-size:12px;color:#94a3b8;text-decoration:underline;cursor:pointer">Obtener ayuda del soporte</span>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- INSTRUCCIONES -->
+    <sc-if value="{{ agIsIns }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:820px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:280px">
+            <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Instrucciones</div>
+            <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px">Pautas que especifican <b style="color:#1f2937">cómo debe responder el agente</b> en diferentes escenarios: tono de voz, estilo y reglas específicas.</div>
+          </div>
+          <input placeholder="🔍 Buscar instrucciones…" style="flex:none;width:220px;border:1px solid #e2e5ec;background:#fff;border-radius:10px;padding:10px 13px;font-size:12.5px;font-family:inherit;outline:none;color:#0f172a" />
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:#ede7fb;border-radius:13px;padding:13px 16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:240px"><div style="font-size:13px;font-weight:700;color:#2a1263">bri se comporta mucho mejor con instrucciones</div><div style="font-size:12px;color:#6035d2;margin-top:2px">Añade pautas y bri las seguirá en todas sus respuestas.</div></div>
+          <div onClick="{{ ins.onQuick }}" style="flex:none;font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:9px 16px;border-radius:9px;cursor:pointer">{{ ins.quickLabel }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;display:flex;align-items:center;gap:10px">
+            <span style="font-size:14px;font-weight:700;color:#1f2937">📋 Instrucciones <span class="tip">ⓘ<span class="tipbox">bri sigue estas pautas en el chat real y en el Playground.</span></span></span>
+          </div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <span style="font-size:12px;font-weight:600;color:#8b93a5;padding-top:7px">Sugerencias</span>
+              <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ ins.suggestions }}" as="sg" hint-placeholder-count="3"><span onClick="{{ sg.onClick }}" style="font-size:12px;font-weight:600;color:#475569;background:#fff;border:1px solid #e2e5ec;border-radius:20px;padding:7px 13px;cursor:pointer">{{ sg.text }}</span></sc-for>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <input value="{{ ins.draft }}" onInput="{{ ins.onDraft }}" onKeyDown="{{ ins.onKey }}" placeholder="Escribe una nueva instrucción…" style="flex:1;border:1px solid #e2e5ec;background:#f8f9fb;border-radius:10px;padding:10px 13px;font-size:13px;font-family:inherit;outline:none;color:#0f172a" />
+              <span onClick="{{ ins.onAdd }}" style="flex:none;font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:10px 16px;border-radius:10px;cursor:pointer">⊕ Nueva</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#1f2937">Instrucciones <span style="color:#94a3b8">({{ ins.count }})</span></div>
+            <sc-if value="{{ ins.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1.5px dashed #e2e5ec;border-radius:11px;padding:26px;text-align:center;font-size:13px;color:#b3b9c6">Aún no hay instrucciones…</div>
+            </sc-if>
+            <sc-for list="{{ ins.items }}" as="it" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:11px;padding:11px 14px">
+                <div onClick="{{ it.onToggle }}" style="{{ it.track }}"><div style="{{ it.knob }}"></div></div>
+                <span style="{{ it.textStyle }}">{{ it.text }}</span>
+                <span onClick="{{ it.onDelete }}" style="flex:none;color:#b3b9c6;cursor:pointer;font-size:14px">✕</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ENRUTAMIENTO -->
+    <sc-if value="{{ agIsRut }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:820px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Enrutamiento</div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px">Reglas que definen <b style="color:#1f2937">lo que el agente debe hacer</b> en situaciones específicas: enrutar a asesores, integraciones u otros agentes.</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">🗺 Reglas de enrutamiento</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <span style="font-size:12px;font-weight:600;color:#8b93a5;padding-top:7px">Sugerencias</span>
+              <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ rut.suggestions }}" as="sg" hint-placeholder-count="3"><span onClick="{{ sg.onClick }}" style="font-size:12px;font-weight:600;color:#475569;background:#fff;border:1px solid #e2e5ec;border-radius:20px;padding:7px 13px;cursor:pointer">{{ sg.text }}</span></sc-for>
+              </div>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#1f2937">Grupos <span style="color:#94a3b8">(1)</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:4px 2px">
+              <span style="flex:none;width:32px;height:32px;border-radius:9px;background:#fff0e7;border:1px solid #ffd8c4;display:flex;align-items:center;justify-content:center;font-size:14px">🔒</span>
+              <span style="font-size:13.5px;font-weight:700;color:#1f2937">Integradas <span style="color:#94a3b8">(1)</span></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:11px;padding:12px 14px">
+              <div onClick="{{ rut.onEsc }}" style="{{ rut.escTrack }}"><div style="{{ rut.escKnob }}"></div></div>
+              <span style="font-size:13.5px;font-weight:600;color:#1f2937;flex:1">Regla de escalado</span>
+              <span style="flex:none;font-size:11px;font-weight:700;color:#6035d2;border:1px solid #c8b8f0;padding:3px 11px;border-radius:14px">Predeterminado</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#1f2937">Reglas personalizadas <span style="color:#94a3b8">({{ rut.count }})</span></div>
+            <sc-if value="{{ rut.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1.5px dashed #e2e5ec;border-radius:11px;padding:26px;text-align:center;font-size:13px;color:#b3b9c6">Aún no hay reglas… añade una desde las sugerencias.</div>
+            </sc-if>
+            <sc-for list="{{ rut.items }}" as="it" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:11px;padding:11px 14px">
+                <div onClick="{{ it.onToggle }}" style="{{ it.track }}"><div style="{{ it.knob }}"></div></div>
+                <span style="{{ it.textStyle }}">{{ it.text }}</span>
+                <span onClick="{{ it.onDelete }}" style="flex:none;color:#b3b9c6;cursor:pointer;font-size:14px">✕</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- PREGUNTAS Y RESPUESTAS -->
+    <sc-if value="{{ agIsQa }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:820px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Entrenar con <span style="color:#6035d2">preguntas y respuestas</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px"><b style="color:#1f2937">Responde aquí las preguntas comunes una vez.</b> Tu agente de IA se encarga del resto.</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">💬 Preguntas y respuestas <span class="tip">ⓘ<span class="tipbox">bri usa estas respuestas oficiales antes que cualquier otra fuente.</span></span></div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <span style="font-size:12px;font-weight:600;color:#8b93a5;padding-top:7px">Sugerencias</span>
+              <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ qa.suggestions }}" as="sg" hint-placeholder-count="3"><span onClick="{{ sg.onClick }}" style="font-size:12px;font-weight:600;color:#475569;background:#fff;border:1px solid #e2e5ec;border-radius:20px;padding:7px 13px;cursor:pointer">{{ sg.text }}</span></sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <input value="{{ qa.q }}" onInput="{{ qa.onQ }}" placeholder="Pregunta del cliente…" style="border:1px solid #e2e5ec;background:#f8f9fb;border-radius:10px;padding:10px 13px;font-size:13px;font-family:inherit;outline:none;color:#0f172a" />
+              <textarea value="{{ qa.a }}" onInput="{{ qa.onA }}" placeholder="Respuesta oficial…" style="border:1px solid #e2e5ec;background:#f8f9fb;border-radius:10px;padding:10px 13px;font-size:13px;font-family:inherit;outline:none;color:#0f172a;min-height:64px;resize:vertical"></textarea>
+              <span onClick="{{ qa.onAdd }}" style="align-self:flex-start;font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:9px 16px;border-radius:9px;cursor:pointer">⊕ Añadir respuesta</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#1f2937">Respuestas <span style="color:#94a3b8">({{ qa.count }})</span></div>
+            <sc-if value="{{ qa.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1.5px dashed #e2e5ec;border-radius:11px;padding:26px;text-align:center;font-size:13px;color:#b3b9c6">Aún no hay respuestas…</div>
+            </sc-if>
+            <sc-for list="{{ qa.items }}" as="it" hint-placeholder-count="0">
+              <div style="display:flex;align-items:flex-start;gap:12px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:11px;padding:12px 14px">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#1f2937">{{ it.q }}</div><div style="font-size:12.5px;color:#64748b;line-height:1.5;margin-top:3px">{{ it.a }}</div></div>
+                <span onClick="{{ it.onDelete }}" style="flex:none;color:#b3b9c6;cursor:pointer;font-size:14px">✕</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- PÁGINAS WEB -->
+    <sc-if value="{{ agIsWeb }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:820px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Entrenar con tus <span style="color:#6035d2">sitios web</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px"><b style="color:#1f2937">Navegamos por todo tu sitio web por ti</b> y extraemos el conocimiento para tu agente.</div>
+        </div>
+        <sc-if value="{{ web.empty }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#fff0e7;border:1px solid #ffd8c4;border-radius:13px;padding:13px 16px"><div style="font-size:13px;font-weight:700;color:#9a3412">Sin fuente de datos</div><div style="font-size:12.5px;color:#c2410c;margin-top:2px">Entrena a tu agente agregando tus dominios web, solo toma un minuto.</div></div>
+        </sc-if>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">🌐 Sitios web importados</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+            <span style="font-size:12.5px;font-weight:700;color:#475569">Dominio web (para importar)</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input value="{{ web.draft }}" onInput="{{ web.onDraft }}" placeholder="www.ejemplo.com (la URL de tu sitio web)" style="flex:1;min-width:220px;border:1px solid #e2e5ec;background:#f8f9fb;border-radius:10px;padding:10px 13px;font-size:13px;font-family:inherit;outline:none;color:#0f172a" />
+              <span onClick="{{ web.onImport }}" style="{{ web.importStyle }}">Importar mi sitio web ›</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:#1f2937;margin-top:4px">Dominios <span style="color:#94a3b8">({{ web.count }})</span></div>
+            <sc-if value="{{ web.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1.5px dashed #e2e5ec;border-radius:11px;padding:26px;text-align:center;font-size:13px;color:#b3b9c6">Aún no hay dominios…</div>
+            </sc-if>
+            <sc-for list="{{ web.items }}" as="it" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:11px;padding:12px 14px">
+                <span style="{{ it.dot }}"></span>
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#1f2937">{{ it.domain }}</div><div style="font-size:11.5px;color:#94a3b8;margin-top:2px">{{ it.status }}</div></div>
+                <span onClick="{{ it.onDelete }}" style="flex:none;color:#b3b9c6;cursor:pointer;font-size:14px">✕</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ARCHIVOS -->
+    <sc-if value="{{ agIsFile }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:820px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Entrenar con tus <span style="color:#6035d2">archivos</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px"><b style="color:#1f2937">Leemos tus archivos y extraemos el contenido de texto</b> como fuente de datos para tu agente.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:#64748b;border-radius:13px;padding:13px 16px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:600;color:#fff;flex:1;min-width:240px">Descarga este archivo CSV de muestra para comenzar con las importaciones</span>
+          <span onClick="{{ tr.onSample }}" style="flex:none;font-size:12.5px;font-weight:700;color:#fff;border:1.5px solid rgba(255,255,255,.7);padding:8px 15px;border-radius:9px;cursor:pointer">Descargar muestra CSV ›</span>
+        </div>
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">📁 Archivos importados <span class="tip">ⓘ<span class="tipbox">El contenido de texto de estos archivos alimenta al agente.</span></span></div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+            <input id="tr-file-input" type="file" multiple accept=".csv,.pdf,.txt,.md,.mdx" onChange="{{ tr.onFiles }}" style="display:none" />
+            <label for="tr-file-input" style="border:1.5px dashed #c8b8f0;background:#faf8ff;border-radius:12px;padding:30px;text-align:center;cursor:pointer;display:block">
+              <div style="font-size:19px;color:#6035d2">⊕</div>
+              <div style="font-size:13px;font-weight:600;color:#475569;margin-top:6px">Haz clic o arrastra y suelta archivos de documento aquí</div>
+              <div style="font-size:11.5px;color:#94a3b8;margin-top:3px">Tipos de archivo aceptados: .csv, .pdf, .txt, .md, .mdx</div>
+            </label>
+            <span style="font-size:11.5px;color:#94a3b8">ⓘ Los archivos PDF solo pueden leerse si se puede seleccionar texto al abrirlos.</span>
+            <div style="font-size:13px;font-weight:700;color:#1f2937">Archivos <span style="color:#94a3b8">({{ tr.count }})</span></div>
+            <sc-if value="{{ tr.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1.5px dashed #e2e5ec;border-radius:11px;padding:26px;text-align:center;font-size:13px;color:#b3b9c6">Aún no hay documentos…</div>
+            </sc-if>
+            <sc-for list="{{ tr.items }}" as="it" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:11px;padding:11px 14px">
+                <span style="flex:none;font-size:15px">📄</span>
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div><div style="font-size:11.5px;color:#94a3b8;margin-top:2px">{{ it.meta }}</div></div>
+                <span onClick="{{ it.onDelete }}" style="flex:none;color:#b3b9c6;cursor:pointer;font-size:14px">✕</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- FACTURACIÓN -->
+    <sc-if value="{{ agIsFac }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:820px;display:flex;flex-direction:column;gap:18px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Configuración de <span style="color:#6035d2">facturación</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px">Los créditos solo se utilizan cuando bri participa en una conversación. <b style="color:#1f2937">Las respuestas de asesores humanos son gratuitas y no se cobran.</b></div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+            <span style="font-size:15.5px;font-weight:700;color:#1f2937">Plan y suscripción</span>
+            <span style="margin-left:auto;display:flex;gap:16px"><span onClick="{{ fac.onDemo1 }}" style="font-size:12.5px;font-weight:700;color:#6035d2;cursor:pointer">Tarjetas ›</span><span onClick="{{ fac.onDemo2 }}" style="font-size:12.5px;font-weight:700;color:#6035d2;cursor:pointer">Facturas ›</span></span>
+          </div>
+          <div style="display:flex;gap:28px;margin-top:18px;flex-wrap:wrap">
+            <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Créditos gratuitos <span class="tip">ⓘ<span class="tipbox">Créditos de IA incluidos cada mes en tu plan actual.</span></span></span>
+              <div><span class="brand" style="font-size:32px;font-weight:700;color:#1f2937">{{ fac.creditLeft }}</span><span style="font-size:14px;color:#94a3b8"> / {{ fac.creditTotal }}</span></div>
+              <span style="font-size:12.5px;color:#64748b">Créditos gratuitos restantes este mes en tu plan bri</span>
+              <span onClick="{{ fac.onDemo3 }}" style="font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:9px 18px;border-radius:9px;cursor:pointer;margin-top:4px">Cambiar plan</span>
+            </div>
+            <div style="width:1px;background:#eef0f4"></div>
+            <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+              <span style="font-size:12.5px;font-weight:700;color:#475569">Pago por uso</span>
+              <span class="brand" style="font-size:22px;font-weight:700;color:#8b93a5">No disponible</span>
+              <span style="font-size:12.5px;color:#64748b;line-height:1.55">El pago por uso no está disponible durante el período de prueba. Contáctanos para finalizar tu prueba anticipadamente.</span>
+              <span onClick="{{ fac.onDemo4 }}" style="font-size:12.5px;font-weight:700;color:#475569;background:#fff;border:1px solid #e2e5ec;padding:9px 18px;border-radius:9px;cursor:pointer;margin-top:4px">Contáctanos</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:9px"><span style="font-size:15.5px;font-weight:700;color:#1f2937">Escalado cuando se agotan los créditos</span><span style="font-size:10.5px;font-weight:800;color:#6035d2;background:#ede7fb;padding:3px 9px;border-radius:7px">Plus</span></div>
+          <div style="font-size:12.5px;color:#64748b;line-height:1.6">Cuando se agotan tus créditos de IA, bri escala la conversación a tu bandeja de entrada de forma predeterminada. Con el plan Plus, puedes transferirla a un asesor asignado en su lugar.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ fac.escOpts }}" as="e" hint-placeholder-count="2"><span onClick="{{ e.onClick }}" style="{{ e.style }}">{{ e.label }}</span></sc-for>
+          </div>
+          <span onClick="{{ fac.onDemo5 }}" style="font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:9px 18px;border-radius:9px;cursor:pointer;align-self:flex-start">Cambiar al plan Plus</span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span class="brand" style="font-size:17px;font-weight:700;color:#1f2937">Uso</span>
+            <sc-for list="{{ fac.ranges }}" as="r" hint-placeholder-count="2"><span onClick="{{ r.onClick }}" style="{{ r.style }}">{{ r.label }}</span></sc-for>
+            <span style="margin-left:auto;font-size:12.5px;color:#64748b">Costo promedio por conversación: <b style="color:#1f2937">{{ fac.avgCost }}</b> <span class="tip">ⓘ<span class="tipbox">Costo total de IA dividido entre las conversaciones del periodo.</span></span></span>
+          </div>
+          <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05);padding:20px 22px;display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ fac.grid }}" as="g" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;height:46px">
+                <span style="width:52px;flex:none;font-size:11.5px;color:#8b93a5;text-align:right">{{ g.left }}</span>
+                <div style="flex:1;display:flex;align-items:flex-end;gap:3px;border-bottom:1.5px dashed #e7e9f0;height:100%">
+                  <sc-for list="{{ g.bars }}" as="b" hint-placeholder-count="0"><div style="{{ b.style }}"></div></sc-for>
+                </div>
+                <span style="width:52px;flex:none;font-size:11.5px;color:#16a34a">{{ g.right }}</span>
+              </div>
+            </sc-for>
+            <div style="display:flex;justify-content:center;gap:20px;padding-top:16px">
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569"><span style="width:10px;height:10px;border-radius:3px;background:#6035d2"></span>Incluido</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569"><span style="width:10px;height:10px;border-radius:3px;background:#fd5a07"></span>Pago por uso</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569"><span style="width:10px;height:10px;border-radius:50%;background:#16a34a"></span>Costo prom./conv.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ACTIVACIÓN -->
+    <sc-if value="{{ agIsAct }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-width:0;overflow-y:auto;padding:28px 30px">
+      <div style="max-width:760px;display:flex;flex-direction:column;gap:16px">
+        <div>
+          <div class="brand" style="font-size:22px;font-weight:700;color:#1f2937">Activación del agente <span style="font-weight:500;color:#6b7280">para nuevas conversaciones</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;margin-top:8px"><b style="color:#1f2937">Decide qué hacer</b> cuando llegue una nueva conversación: enviarla a tu <b style="color:#1f2937">agente de IA</b>, a la bandeja de entrada o a un asesor.</div>
+        </div>
+
+        <sc-if value="{{ act.showWarn }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;background:#fd5a07;border-radius:12px;padding:12px 16px">
+            <span style="font-size:13px;font-weight:700;color:#fff;flex:1">⚠ El agente de IA está deshabilitado. Las conversaciones se enrutarán a la bandeja de entrada.</span>
+            <div onClick="{{ act.onFix }}" style="flex:none;font-size:12.5px;font-weight:700;color:#fff;border:1.5px solid rgba(255,255,255,.75);padding:7px 15px;border-radius:9px;cursor:pointer">Corregir esto ›</div>
+          </div>
+        </sc-if>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">⚙ Activación del agente</div>
+          <div style="padding:16px 18px;display:flex;align-items:center;gap:12px">
+            <div onClick="{{ act.onToggleMain }}" style="{{ act.mainTrack }}"><div style="{{ act.mainKnob }}"></div></div>
+            <span style="font-size:13.5px;font-weight:600;color:#1f2937">Habilitar el agente de IA de bri en conversaciones entrantes</span>
+            <span style="{{ act.warnIcon }}">⚠</span>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">✆ Habilitar agente de IA en canales</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+            <span style="font-size:12px;font-weight:600;color:#8b93a5">Responder solo en estos canales <span class="tip">ⓘ<span class="tipbox">El agente solo contestará mensajes de los canales seleccionados.</span></span></span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sc-for list="{{ act.channels }}" as="c" hint-placeholder-count="3"><span onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</span></sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">↻ Reactivar el agente tras la resolución</div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div onClick="{{ act.onToggleReact }}" style="{{ act.reactTrack }}"><div style="{{ act.reactKnob }}"></div></div>
+              <span style="font-size:13.5px;font-weight:600;color:#1f2937">Permitir que el agente de bri responda de nuevo después de la resolución <span class="tip">ⓘ<span class="tipbox">Tras cerrar una conversación, el agente vuelve a responder pasado el retraso configurado.</span></span></span>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <span style="{{ act.delayLbl }}">Retraso de reactivación <span style="color:#ef4444">*</span></span>
+                <input type="number" value="{{ act.delay }}" onInput="{{ act.onDelay }}" disabled="{{ act.fieldsOff }}" style="{{ act.delayInput }}" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <span style="{{ act.delayLbl }}">Unidad</span>
+                <div style="display:flex;gap:6px">
+                  <sc-for list="{{ act.units }}" as="u" hint-placeholder-count="2"><span onClick="{{ u.onClick }}" style="{{ u.style }}">{{ u.label }}</span></sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e9ebf1;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+          <div style="padding:14px 18px;border-bottom:1px solid #eef0f4;font-size:14px;font-weight:700;color:#1f2937">🕓 Horario de oficina</div>
+          <div style="padding:16px 18px;display:flex;align-items:center;gap:12px">
+            <div onClick="{{ act.onToggleOffice }}" style="{{ act.officeTrack }}"><div style="{{ act.officeKnob }}"></div></div>
+            <span style="{{ act.officeLbl }}">Mostrar disponibilidad del horario de oficina al escalar a un asesor <span class="tip">ⓘ<span class="tipbox">Muestra al cliente el horario en que hay asesores humanos disponibles.</span></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- OBSERVABILIDAD -->
+    <sc-if value="{{ agIsObs }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;min-width:0">
+      <div style="width:264px;flex:none;background:#fff;border-right:1px solid #eceef3;display:flex;flex-direction:column">
+        <div style="padding:16px 16px 12px;border-bottom:1px solid #eef0f4">
+          <div class="brand" style="font-size:16px;font-weight:700;color:#1f2937">Observabilidad</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+            <span onClick="{{ agObsFilter }}" style="font-size:12.5px;font-weight:600;color:#475569;cursor:pointer">Todas ▾</span>
+            <span onClick="{{ onExport }}" style="margin-left:auto;font-size:11.5px;font-weight:700;color:#64748b;background:#fff;border:1px solid #e2e5ec;padding:6px 11px;border-radius:8px;cursor:pointer">⤓ Exportar</span>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:8px">
+          <sc-for list="{{ agObsList }}" as="o" hint-placeholder-count="4">
+            <div onClick="{{ o.onSelect }}" style="{{ o.style }}">
+              <div style="font-size:12.5px;font-weight:700;color:#1f2937">{{ o.name }}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px">{{ o.meta }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:1;min-width:0;overflow-y:auto;padding:40px 30px;background:linear-gradient(180deg,#f8f8fc,#f2f1f8)">
+        <div style="max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px;text-align:center;align-items:center">
+          <div class="brand" style="font-size:24px;font-weight:700;color:#1f2937">Observabilidad <span style="color:#6035d2">de IA</span></div>
+          <div style="font-size:13px;color:#64748b;line-height:1.6;max-width:460px">Analiza cómo se comporta tu agente durante las conversaciones y ajusta su rendimiento.</div>
+          <div style="width:100%;max-width:430px;margin-top:16px;display:flex;flex-direction:column;gap:0;text-align:left">
+            <div style="font-size:12px;font-weight:700;color:#8b93a5;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">{{ agObsTitle }}</div>
+            <sc-for list="{{ agObsSteps }}" as="st" hint-placeholder-count="3">
+              <div style="{{ st.style }}">
+                <span style="{{ st.iconStyle }}">{{ st.icon }}</span>
+                <span style="flex:1;font-size:13.5px;font-weight:700;color:#1f2937">{{ st.label }}</span>
+                <span style="font-size:13px;font-weight:700;color:#475569">{{ st.time }}</span>
+                <span style="color:#16a34a;font-weight:800">✓</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;font-size:13px;font-weight:600;padding:11px 20px;border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.4);z-index:500;white-space:nowrap">{{ toastMsg }}</div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;ticketMedio&quot;: {&quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 350, &quot;min&quot;: 0, &quot;max&quot;: 100000, &quot;step&quot;: 10, &quot;unit&quot;: &quot;€&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;General&quot;, &quot;description&quot;: &quot;Valor medio de cada venta cerrada&quot;},
+  &quot;pauta1Nombre&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Promo Plan Pro · Meta Ads&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Pauta 1&quot;},
+  &quot;pauta1Inversion&quot;: {&quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 420, &quot;min&quot;: 0, &quot;max&quot;: 100000, &quot;step&quot;: 10, &quot;unit&quot;: &quot;€&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Pauta 1&quot;},
+  &quot;pauta2Nombre&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;CTA WhatsApp · Julio&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Pauta 2&quot;},
+  &quot;pauta2Inversion&quot;: {&quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 260, &quot;min&quot;: 0, &quot;max&quot;: 100000, &quot;step&quot;: 10, &quot;unit&quot;: &quot;€&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Pauta 2&quot;},
+  &quot;pauta3Nombre&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Remarketing Web&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Pauta 3&quot;},
+  &quot;pauta3Inversion&quot;: {&quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 180, &quot;min&quot;: 0, &quot;max&quot;: 100000, &quot;step&quot;: 10, &quot;unit&quot;: &quot;€&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Pauta 3&quot;}
+}">
+class Component extends DCLogic {
+  state = {
+    view: "chat",
+    range: "d",
+    hoverBar: -1,
+    expandedPauta: null,
+    hoverNav: -1,
+    cfgBotName: "Bri",
+    cfgWelcome: "¡Hola! 👋 Soy Bri, tu asistente. ¿Qué te trae por aquí hoy?",
+    cfgTone: "Cercano",
+    cfgContext: "Vendemos bri, un SaaS de CRM con IA. Planes: Starter €12/usuario/mes, Pro €29/usuario/mes (incluye analítica avanzada y automatizaciones), Enterprise a medida. Descuento del 15% en pago anual. Ofrecemos demo gratuita de 14 días sin tarjeta.",
+    cfgHotMin: 70,
+    cfgWa: true,
+    cfgIg: true,
+    agDraft: "",
+    agTyping: false,
+    agModel: "auto",
+    agGuide: "Conservador",
+    agMsgs: [{role:"bot", text:"¡Hola! 👋 Soy bri en modo de pruebas. Escríbeme como si fueras un cliente."}],
+    agSection: "playground",
+    agSugs: [],
+    agSugsLoading: false,
+    agObsId: null,
+    actEnabled: false,
+    actChannel: "all",
+    actReact: true,
+    actDelay: 5,
+    actUnit: "Días",
+    actOffice: false,
+    ciLogo: null,
+    ciGenLoading: false,
+    ciFallback: true,
+    ciImages: true,
+    ciAudio: true,
+    ciStyle: "Conversacional",
+    ciLang: "auto",
+    ciEscNoAns: true,
+    ciEscFrust: true,
+    ciResSuggest: true,
+    ciResAuto: true,
+    ciResDelay: 7,
+    ciResUnit: "Días",
+    ciSource: "all",
+    ciAccSegments: false,
+    ciAccLocation: false,
+    ciAccDevice: false,
+    ciAccCustom: false,
+    ciBudget: false,
+    ciBudgetVal: 2,
+    facEsc: "inbox",
+    facRange: "Mensual",
+    insList: [],
+    insDraft: "",
+    rutRules: [],
+    rutEsc: true,
+    qaList: [],
+    qaQ: "",
+    qaA: "",
+    webDomains: [],
+    webDraft: "",
+    fileList: [],
+    conSearch: "",
+    conBanner: true,
+    conFilter: "all",
+    conSel: {},
+    busQ: "",
+    toast: "",
+    campList: [],
+    campSearch: "",
+    campType: "all",
+    campView: "list",
+    campTplSel: "all",
+    ownTpls: [],
+    tplEditing: -1,
+    tplEditName: "",
+    tplEditBody: "",
+    draft: "",
+    typing: false,
+    selectedId: "l0",
+    leads: [
+      { id:"l1", name:"Carlos Ruiz", company:"TechCorp · 40 empleados", color:"#0ea5e9",
+        channel:"wa", pautaId:"p2",
+        score:88, bucket:"hot", time:"2 min",
+        reasons:["Confirmó presupuesto para 12 licencias","Quiere implementar este trimestre","Es el decisor de compra"],
+        signals:{budget:true,authority:true,need:true,timing:true},
+        msgs:[
+          {role:"bot", text:"¡Hola Carlos! 👋 ¿buscas un plan para tu equipo?"},
+          {role:"user", text:"Sí, somos 12 y necesitamos algo este trimestre"},
+          {role:"bot", text:"Perfecto. El Plan Pro encaja: €29/usuario con analítica avanzada. ¿Tienes presupuesto aprobado?"},
+          {role:"user", text:"Sí, ya está aprobado. Yo tomo la decisión."}
+        ] },
+      { id:"l2", name:"Ana Torres", company:"Estudio Norte", color:"#8b5cf6",
+        channel:"ig", pautaId:"p1",
+        score:76, bucket:"hot", time:"11 min",
+        reasons:["Necesidad clara para su equipo de ventas","Aún no confirma presupuesto"],
+        signals:{budget:false,authority:true,need:true,timing:true},
+        msgs:[
+          {role:"bot", text:"¡Hola Ana! ¿en qué te ayudo hoy?"},
+          {role:"user", text:"Quiero automatizar el seguimiento de clientes"},
+          {role:"bot", text:"El Plan Pro lo hace. ¿Para cuántas personas?"},
+          {role:"user", text:"Unas 6, arrancaríamos pronto"}
+        ] },
+      { id:"l0", name:"Nuevo visitante", company:"Chat en vivo", color:"#fd5a07",
+        channel:"ig", pautaId:"p3",
+        score:0, bucket:"cold", time:"ahora",
+        reasons:["Aún sin señales — inicia la conversación para calificar"],
+        signals:{budget:false,authority:false,need:false,timing:false},
+        msgs:[
+          {role:"bot", text:"¡Hola! 👋 Soy Bri, tu asistente. ¿Qué te trae por aquí hoy?"}
+        ] },
+      { id:"l3", name:"Lucía Fernández", company:"Marca Viva", color:"#f59e0b",
+        channel:"ig", pautaId:"p1",
+        score:52, bucket:"warm", time:"25 min",
+        reasons:["Interesada pero comparando con la competencia","Sin fecha de decisión"],
+        signals:{budget:false,authority:false,need:true,timing:false},
+        msgs:[
+          {role:"bot", text:"¡Hola Lucía! ¿te muestro cómo funciona?"},
+          {role:"user", text:"Estoy viendo varias opciones todavía"}
+        ] },
+      { id:"l4", name:"Diego Marín", company:"—", color:"#94a3b8",
+        channel:"wa", pautaId:"p3",
+        score:18, bucket:"cold", time:"1 h",
+        reasons:["Solo está explorando, sin intención de compra","Sin equipo ni caso de uso definido"],
+        signals:{budget:false,authority:false,need:false,timing:false},
+        msgs:[
+          {role:"bot", text:"¡Hola! ¿buscas algo en concreto?"},
+          {role:"user", text:"Nah, solo mirando"}
+        ] }
+    ]
+  };
+
+  PAUTAS = {
+    p1:{ id:"p1", name:"Promo Plan Pro · Meta Ads", channel:"ig" },
+    p2:{ id:"p2", name:"CTA WhatsApp · Julio", channel:"wa" },
+    p3:{ id:"p3", name:"Remarketing Web", channel:"ig" }
+  };
+  CHMETA = {
+    wa:{ name:"WhatsApp", short:"WA",
+      light:"display:inline-flex;align-items:center;font-size:10px;font-weight:800;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:5px",
+      dark:"font-size:9px;font-weight:800;color:#4ade80;background:rgba(74,222,128,.15);padding:1px 5px;border-radius:4px;flex:none" },
+    ig:{ name:"Instagram", short:"IG",
+      light:"display:inline-flex;align-items:center;font-size:10px;font-weight:800;color:#be185d;background:#fce7f3;padding:2px 7px;border-radius:5px",
+      dark:"font-size:9px;font-weight:800;color:#f472b6;background:rgba(244,114,182,.15);padding:1px 5px;border-radius:4px;flex:none" }
+  };
+  META = {
+    hot:  { label:"Casi seguro",    color:"#16a34a", bg:"#ecfdf3", dot:"#16a34a" },
+    warm: { label:"Tal vez",        color:"#b45309", bg:"#fffbeb", dot:"#f59e0b" },
+    cold: { label:"Poco probable",  color:"#64748b", bg:"#f1f5f9", dot:"#94a3b8" }
+  };
+  SIGLABELS = { budget:"Interés", authority:"Precio", need:"Datos", timing:"Urgencia" };
+
+  initials(n){ return n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+  avatarSoft(hex){
+    const M={"#0ea5e9":["#e1f2fb","#0369a1"],"#8b5cf6":["#f0e9fc","#6d28d9"],"#6366f1":["#ece9fb","#4f46e5"],"#f59e0b":["#fdf0da","#b45309"],"#94a3b8":["#edf0f4","#64748b"]};
+    const [bg,fg]=M[hex]||["#ede7fb","#6035d2"];
+    return `background:${bg};color:${fg};border:1px solid ${fg}22`;
+  }
+  pautaCfg(){
+    const P=this.props||{};
+    return {
+      p1:{ name:(P.pauta1Nombre??"Promo Plan Pro · Meta Ads"), inv:Number(P.pauta1Inversion??420) },
+      p2:{ name:(P.pauta2Nombre??"CTA WhatsApp · Julio"), inv:Number(P.pauta2Inversion??260) },
+      p3:{ name:(P.pauta3Nombre??"Remarketing Web"), inv:Number(P.pauta3Inversion??180) }
+    };
+  }
+  pautaDisplayName(id){ const c=this.pautaCfg()[id]; return c? c.name : "Orgánico"; }
+  getLead(id){ return this.state.leads.find(l=>l.id===id); }
+
+  componentDidMount(){ this.scroll(); this.loadReal(); this._poll=setInterval(()=>this.loadReal(),5000); }
+  componentDidUpdate(){ this.scroll(); }
+  scroll(){ ["sb-scroll","ag-scroll"].forEach(id=>{ const el=document.getElementById(id); if(el) el.scrollTop=el.scrollHeight; }); }
+
+  async agSend(){
+    const text=this.state.agDraft.trim();
+    if(!text || this.state.agTyping) return;
+    this.setState(s=>({agDraft:"", agTyping:true, agMsgs:[...s.agMsgs,{role:"user",text}]}));
+    const guides={
+      "Conservador":"Solo responde con información del contexto; si no la tienes, admítelo y ofrece un asesor.",
+      "Equilibrado":"Responde con el contexto y complementa con sentido común comercial.",
+      "Creativo":"Responde de forma persuasiva y proactiva, sugiriendo siempre un siguiente paso."
+    };
+    const system=`Eres ${this.state.cfgBotName}, agente de ventas en un ENTORNO DE PRUEBAS.
+CONTEXTO DEL NEGOCIO:
+${this.state.cfgContext}${this.buildKnowledge()}
+Guía: ${guides[this.state.agGuide]}
+Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases, texto plano sin JSON.`;
+    try{
+      const msgs=[...this.state.agMsgs].map(m=>({role:m.role==="user"?"user":"assistant",content:m.text}));
+      const raw=await window.claude.complete({system, messages:msgs, max_tokens:300});
+      this.setState(s=>({agTyping:false, agMsgs:[...s.agMsgs,{role:"bot",text:String(raw).trim()}]}));
+    }catch(e){
+      this.setState(s=>({agTyping:false, agMsgs:[...s.agMsgs,{role:"bot",text:"Perdona, tuve un problema. Intenta de nuevo."}]}));
+    }
+  }
+
+  select(id){ this.setState({selectedId:id, draft:""}); this.scoreOne(id); }
+
+  onInput = (e)=> this.setState({draft:e.target.value});
+  onKey = (e)=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); this.send(); } };
+
+  send(text){
+    const content = (text!=null ? text : this.state.draft).trim();
+    if(!content || this.state.typing) return;
+    const id = this.state.selectedId;
+    const web = String(id).startsWith('web-');
+    // WEB = pruebas (simulas al cliente, el bot responde). Real = TÚ respondes como bri al cliente.
+    const role = web ? 'user' : 'bot';
+    this.setState(s=>({
+      draft:"",
+      typing:true,
+      leads: s.leads.map(l=> l.id===id ? {...l, msgs:[...l.msgs,{role, text:content}], time:"ahora"} : l)
+    }), ()=> web ? this.realReply(id, content) : this.humanReply(id, content));
+  }
+  async humanReply(id, content){
+    try{
+      const r = await fetch('/api/reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, phone:id, text:content })}).then(x=>x.json());
+      if(r && r.error){ this.setState(s=>({ leads:s.leads.map(l=> l.id===id ? {...l, msgs:[...l.msgs,{role:"note",text:"No se pudo enviar: "+r.error}]} : l) })); }
+    }catch(e){}
+    this.setState({typing:false});
+  }
+
+  // ===== Integracion con el backend real de Bri (WhatsApp + datos reales) =====
+  async loadReal(){
+    try{
+      if(!this.tenantId){
+        const wa = await fetch('/api/whatsapp').then(r=>r.json()).catch(()=>({}));
+        const linked = (wa.agentes||[]).find(a=>a.phone_number_id);
+        const ts = await fetch('/api/tenants').then(r=>r.json());
+        this.tenantId = (linked && linked.id) || (ts[0] && ts[0].id);
+      }
+      const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
+      const convs = data.conversaciones || [];
+      const leads = await Promise.all(convs.map(c=>this.mapLead(c)));
+      this.setState(s=>{
+        const sel = leads.some(l=>l.id===s.selectedId) ? s.selectedId : ((leads[0]&&leads[0].id) || s.selectedId);
+        return { leads, selectedId: sel };
+      });
+    }catch(e){ /* silencioso: reintenta en el proximo poll */ }
+  }
+  async mapLead(c){
+    const d = await fetch('/api/conversation?tenantId='+encodeURIComponent(this.tenantId)+'&phone='+encodeURIComponent(c.phone)).then(r=>r.json());
+    const lead = d.lead; const sig = (lead&&lead.signals)||{};
+    const bucket = (lead&&lead.bucket)||'cold';
+    const web = String(c.phone).startsWith('web-');
+    return {
+      id:c.phone, name:c.phone, company: web?'Chat web':'WhatsApp',
+      color: bucket==='hot'?'#16a34a':bucket==='warm'?'#f59e0b':'#94a3b8',
+      channel: web?'ig':'wa', pautaId:null,
+      score: lead?lead.score:0, bucket,
+      reasons: (lead&&lead.reasons&&lead.reasons.length)? lead.reasons : ['Aún sin señales — escribe para calificar'],
+      signals: { budget:!!sig.interes, authority:!!sig.precio, need:!!sig.datos, timing:!!sig.urgencia },
+      time: this.relTime(c.lastAt),
+      handedOff: !!d.handoff,
+      msgs: (d.messages||[]).map(m=>({ role:m.role==='user'?'user':'bot', text:m.content }))
+    };
+  }
+  relTime(ts){ const s=Math.floor((Date.now()-ts)/1000); if(s<60)return 'ahora'; if(s<3600)return Math.floor(s/60)+' min'; if(s<86400)return Math.floor(s/3600)+' h'; return Math.floor(s/86400)+' d'; }
+  async realReply(id, content){
+    try{
+      const r = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, phone:id, text:content })}).then(x=>x.json());
+      const extra = (r.images&&r.images.length)? [{role:'bot',text:'📷 '+r.images.map(i=>i.caption).join(', ')}] : [];
+      this.setState(s=>({ typing:false, leads:s.leads.map(l=> l.id===id ? {...l, msgs:[...l.msgs, ...(r.reply?[{role:'bot',text:r.reply}]:[]), ...extra]} : l) }), ()=>this.rescore(id));
+    }catch(e){ this.setState({typing:false}); }
+  }
+  async rescore(id){ return this._score(id, true); }
+  async scoreOne(id){ return this._score(id, false); } // al abrir: recalifica si cambio
+  async _score(id, force){
+    try{
+      const lead = await fetch('/api/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, phone:id, force:!!force })}).then(r=>r.json()).then(x=>x.lead);
+      if(!lead) return; const sig = lead.signals||{};
+      this.setState(s=>({ leads:s.leads.map(l=> l.id===id ? {...l, score:lead.score, bucket:lead.bucket, color: lead.bucket==='hot'?'#16a34a':lead.bucket==='warm'?'#f59e0b':'#94a3b8', reasons:(lead.reasons&&lead.reasons.length)?lead.reasons:l.reasons, signals:{budget:!!sig.interes,authority:!!sig.precio,need:!!sig.datos,timing:!!sig.urgencia}} : l) }));
+    }catch(e){}
+  }
+
+  async askAI(id){
+    const lead = this.getLead(id);
+    const history = lead.msgs.filter(m=>m.role!=="note").map(m=>({ role: m.role==="bot"?"user":"assistant", content:m.text }));
+    const system = `Eres ${this.state.cfgBotName}, un asistente de ventas.
+CONTEXTO DEL NEGOCIO (usa solo esta información para responder sobre productos, precios y condiciones; si algo no está aquí, dilo con honestidad y ofrece pasar con un asesor):
+${this.state.cfgContext}${this.buildKnowledge()}
+En esta simulación TÚ INTERPRETAS AL CLIENTE POTENCIAL (${lead.name}, ${lead.company}) que chatea con el vendedor. Tu trabajo: responder como lo haría ese cliente (máx 2 frases, en español, natural y realista), y CALIFICAR al propio cliente según sus señales de compra.
+Analiza toda la conversación y devuelve SOLO un objeto JSON válido, sin texto extra, con esta forma exacta:
+{"reply":"tu respuesta como el cliente","score":<0-100>,"bucket":"hot|warm|cold","reasons":["2-3 razones cortas en español"],"signals":{"budget":<bool>,"authority":<bool>,"need":<bool>,"timing":<bool>}}
+Guía de bucket: hot = muy probable que compre (presupuesto + autoridad + necesidad clara). warm = interés real pero faltan señales. cold = solo explora o sin intención. El score debe reflejar el bucket (hot ${this.state.cfgHotMin}-100, warm 40-${this.state.cfgHotMin-1}, cold 0-39).`;
+    try{
+      const raw = await window.claude.complete({ system, messages: history, max_tokens: 700 });
+      const data = this.parse(raw);
+      this.setState(s=>({
+        typing:false,
+        leads: s.leads.map(l=>{
+          if(l.id!==id) return l;
+          return {
+            ...l,
+            msgs:[...l.msgs, {role:"user", text:data.reply || "Ok, cuéntame más."}],
+            score: this.clamp(data.score, l.score),
+            bucket: ["hot","warm","cold"].includes(data.bucket)? data.bucket : l.bucket,
+            reasons: Array.isArray(data.reasons)&&data.reasons.length? data.reasons.slice(0,4) : l.reasons,
+            signals: data.signals && typeof data.signals==="object" ? {...l.signals, ...data.signals} : l.signals
+          };
+        })
+      }));
+    }catch(err){
+      this.setState(s=>({
+        typing:false,
+        leads: s.leads.map(l=> l.id===id ? {...l, msgs:[...l.msgs,{role:"user",text:"(el cliente no respondió — intenta de nuevo)"}]} : l)
+      }));
+    }
+  }
+
+  clamp(n, fallback){ n=Number(n); if(Number.isFinite(n)) return Math.max(0,Math.min(100,Math.round(n))); return fallback; }
+  parse(raw){
+    if(!raw) return {};
+    let t = String(raw).trim().replace(/^```(json)?/i,"").replace(/```$/,"").trim();
+    const a=t.indexOf("{"), b=t.lastIndexOf("}");
+    if(a>=0 && b>a) t=t.slice(a,b+1);
+    try{ return JSON.parse(t); }catch(e){ return {}; }
+  }
+
+  exportReport(){
+    const s=this.state;
+    const cfg=this.pautaCfg();
+    const ticket=Number((this.props||{}).ticketMedio??350);
+    const esc=(v)=>'"'+String(v??"").replace(/"/g,'""')+'"';
+    const lines=[];
+    lines.push("REPORTE BRI · "+new Date().toLocaleString("es-ES"));
+    lines.push("");
+    lines.push(["Pauta","Canal","Leads","Casi seguros","Conversion %","Inversion EUR","Ventas est. EUR","ROI %"].join(";"));
+    Object.values(this.PAUTAS).forEach(p=>{
+      const c=cfg[p.id]||{name:p.name,inv:0};
+      const ls=s.leads.filter(l=>l.pautaId===p.id);
+      const hot=ls.filter(l=>l.bucket==="hot").length;
+      const conv=ls.length?Math.round(hot/ls.length*100):0;
+      const sales=hot*ticket;
+      const roi=c.inv>0?Math.round((sales-c.inv)/c.inv*100):0;
+      lines.push([esc(c.name),this.CHMETA[p.channel].name,ls.length,hot,conv,c.inv,sales,roi].join(";"));
+    });
+    lines.push("");
+    lines.push(["Lead","Empresa","Canal","Pauta","Clasificacion","Score","Atendido por asesor"].join(";"));
+    s.leads.forEach(l=>{
+      lines.push([esc(l.name),esc(l.company),this.CHMETA[l.channel].name,esc(this.pautaDisplayName(l.pautaId)),this.META[l.bucket].label,l.score,l.handedOff?"Si":"No"].join(";"));
+    });
+    const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="reporte-bri.csv";
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  }
+
+  showToast(msg){
+    clearTimeout(this._tt);
+    this.setState({toast:msg});
+    this._tt=setTimeout(()=>this.setState({toast:""}),2600);
+  }
+
+  newContact(){
+    const id="new"+Date.now();
+    this.setState(s=>({
+      view:"chat", selectedId:id,
+      leads:[...s.leads, {id, name:"Nuevo contacto", company:"Sin empresa", color:"#6366f1", channel:"wa", pautaId:"p3",
+        score:0, bucket:"cold", time:"ahora",
+        reasons:["Aún sin señales — inicia la conversación para calificar"],
+        signals:{budget:false,authority:false,need:false,timing:false},
+        msgs:[{role:"bot", text:this.state.cfgWelcome}]}]
+    }));
+    this.showToast("Contacto creado — conversación abierta");
+  }
+
+  importContacts(e){
+    const f=e.target.files && e.target.files[0];
+    if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{
+      const lines=String(r.result).split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,10);
+      const colors=["#0ea5e9","#8b5cf6","#f59e0b","#6366f1"];
+      const leads=lines.map((ln,i)=>{
+        const parts=ln.split(/[;,]/).map(x=>x.trim());
+        return {id:"imp"+Date.now()+i, name:parts[0]||("Contacto "+(i+1)), company:parts[1]||"Importado de CRM",
+          color:colors[i%colors.length], channel:"wa", pautaId:"p3", score:10, bucket:"cold", time:"ahora",
+          reasons:["Importado — sin conversación todavía"],
+          signals:{budget:false,authority:false,need:false,timing:false},
+          msgs:[{role:"bot", text:this.state.cfgWelcome}]};
+      });
+      this.setState(s=>({leads:[...s.leads,...leads]}));
+      this.showToast(leads.length+" contacto(s) importado(s)");
+    };
+    r.readAsText(f);
+    e.target.value="";
+  }
+
+  attachFile(e){
+    const f=e.target.files && e.target.files[0];
+    if(!f) return;
+    const id=this.state.selectedId;
+    this.setState(s=>({leads:s.leads.map(l=> l.id===id? {...l, msgs:[...l.msgs,{role:"bot",text:"📎 Archivo adjunto: "+f.name}], time:"ahora"} : l)}));
+    this.showToast("Archivo adjuntado a la conversación");
+    e.target.value="";
+  }
+
+  buildKnowledge(){
+    const ins=this.state.insList.filter(i=>i.on).map(i=>"- "+i.text).join("\n");
+    const qa=this.state.qaList.map(x=>`P: ${x.q}\nR: ${x.a}`).join("\n");
+    let out="";
+    if(ins) out+="\nINSTRUCCIONES DE COMPORTAMIENTO (síguelas siempre):\n"+ins;
+    if(qa) out+="\nPREGUNTAS Y RESPUESTAS OFICIALES (úsalas tal cual cuando apliquen):\n"+qa;
+    return out;
+  }
+
+  addWebDomain(){
+    const d=this.state.webDraft.trim();
+    if(!d) return;
+    const id=Date.now();
+    this.setState(s=>({webDraft:"", webDomains:[...s.webDomains,{id, domain:d, ready:false}]}));
+    setTimeout(()=>this.setState(s=>({webDomains:s.webDomains.map(x=>x.id===id?{...x,ready:true,pages:12+Math.floor(Math.random()*40)}:x)})), 3000);
+  }
+
+  downloadSampleCsv(){
+    const csv="pregunta;respuesta\n¿Cuáles son los planes?;Starter €12, Pro €29, Enterprise a medida\n¿Hay prueba gratuita?;Sí, 14 días sin tarjeta";
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download="muestra-bri.csv"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  }
+
+  onTrainFiles(e){
+    const fs=Array.from(e.target.files||[]);
+    if(!fs.length) return;
+    const items=fs.map(f=>({name:f.name, size:f.size, date:new Date().toLocaleDateString("es-ES")}));
+    this.setState(s=>({fileList:[...s.fileList,...items]}));
+    e.target.value="";
+  }
+
+  onCiLogo(e){
+    const f=e.target.files && e.target.files[0];
+    if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>this.setState({ciLogo:r.result});
+    r.readAsDataURL(f);
+  }
+
+  async ciGenerate(){
+    if(this.state.ciGenLoading) return;
+    this.setState({ciGenLoading:true});
+    try{
+      const raw=await window.claude.complete({
+        system:"Eres un redactor de negocios. Mejora y estructura la descripción del negocio para un agente de ventas con IA: clara, completa, en español, máx 120 palabras, texto plano.",
+        messages:[{role:"user",content:this.state.cfgContext||"Negocio sin descripción, propón una plantilla genérica de ejemplo."}],
+        max_tokens:400
+      });
+      this.setState({ciGenLoading:false, cfgContext:String(raw).trim()});
+    }catch(e){ this.setState({ciGenLoading:false}); }
+  }
+
+  setSug(i,status){ this.setState(s=>({agSugs:s.agSugs.map((x,j)=> j===i? {...x,status} : x)})); }
+
+  async agAnalyze(){
+    if(this.state.agSugsLoading) return;
+    this.setState({agSugsLoading:true});
+    const system=`Eres un auditor de agentes de ventas. Analiza este contexto de negocio:
+${this.state.cfgContext}
+Propón exactamente 2 mejoras a la base de conocimiento. Devuelve SOLO JSON válido:
+{"sugerencias":[{"titulo":"corta","detalle":"por qué mejora al agente (1 frase)","antes":"texto actual o implícito que conviene cambiar","despues":"texto mejorado propuesto"}]}
+Todo en español, textos breves.`;
+    try{
+      const raw=await window.claude.complete({system, messages:[{role:"user",content:"Analiza y sugiere."}], max_tokens:700});
+      const data=this.parse(raw);
+      const sugs=Array.isArray(data.sugerencias)? data.sugerencias.slice(0,3).map(x=>({titulo:x.titulo||"Mejora sugerida",detalle:x.detalle||"",antes:x.antes||"—",despues:x.despues||"—",status:null})) : [];
+      this.setState({agSugsLoading:false, agSugs:sugs.length?sugs:[{titulo:"Añadir política de devoluciones",detalle:"Los clientes suelen preguntarla y no está en el contexto.",antes:"(sin información de devoluciones)",despues:"Ofrecemos devoluciones en 30 días sin preguntas.",status:null}]});
+    }catch(e){
+      this.setState({agSugsLoading:false, agSugs:[{titulo:"Añadir política de devoluciones",detalle:"Los clientes suelen preguntarla y no está en el contexto.",antes:"(sin información de devoluciones)",despues:"Ofrecemos devoluciones en 30 días sin preguntas.",status:null}]});
+    }
+  }
+
+  takeOver(){
+    const id=this.state.selectedId;
+    const cur=this.getLead(id);
+    const on=!(cur && cur.handedOff); // alterna: tomar / devolver al bot
+    fetch('/api/handoff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, phone:id, on })}).catch(()=>{});
+    this.setState(s=>({
+      leads: s.leads.map(l=> l.id===id ? {...l, handedOff:on,
+        msgs:[...l.msgs, {role:"note", text: on ? "Tomaste el control. El bot queda en pausa para este cliente; tus mensajes le llegan por WhatsApp." : "Devolviste la conversación al bot."}] } : l)
+    }));
+  }
+
+  renderVals(){
+    const s=this.state;
+    const order={hot:0,warm:1,cold:2};
+    const counts={hot:0,warm:0,cold:0};
+    s.leads.forEach(l=>counts[l.bucket]++);
+
+    const rowBase="display:flex;align-items:center;gap:11px;padding:10px 9px;border-radius:12px;cursor:pointer;transition:background .12s;";
+    const mkLead=(l)=>{
+      const m=this.META[l.bucket];
+      const last=l.msgs[l.msgs.length-1];
+      const active = l.id===s.selectedId;
+      return {
+        ...l, initials:this.initials(l.name), dot:m.dot,
+        chLabel:(this.CHMETA[l.channel]||this.CHMETA.ig).short,
+        chBadge:(this.CHMETA[l.channel]||this.CHMETA.ig).light+";font-size:9.5px;padding:1px 6px;flex:none",
+        avatarStyle:this.avatarSoft(l.color),
+        scoreLabel: l.score>0? String(l.score) : "—",
+        snippet: (last.role==="user"?"Cliente: ":last.role==="note"?"": "Bot: ")+last.text,
+        rowStyle: rowBase + (active? "background:#fff;box-shadow:inset 0 0 0 1px #fd5a07,0 1px 4px rgba(15,23,42,.06);" : "background:transparent;"),
+        handoffTagStyle: l.handedOff
+          ? "font-size:9.5px;font-weight:700;color:#d94d00;background:#fff0e7;padding:1px 6px;border-radius:5px;flex:none"
+          : "display:none",
+        onSelect: ()=>this.select(l.id)
+      };
+    };
+    const groups=[
+      {key:"hot",...this.META.hot},{key:"warm",...this.META.warm},{key:"cold",...this.META.cold}
+    ].map(g=>{
+      const leads=s.leads.filter(l=>l.bucket===g.key).sort((a,b)=>b.score-a.score).map(mkLead);
+      return { label:g.label, dot:g.dot, count:leads.length, leads };
+    }).filter(g=>g.count>0);
+
+    // selected
+    const L=this.getLead(s.selectedId) || s.leads[0];
+    const m=this.META[L.bucket];
+    const deg = Math.round(L.score*3.6);
+    const msgs=L.msgs.map(msg=>{
+      if(msg.role==="note") return {
+        text:"🧑‍💼 "+msg.text,
+        rowStyle:"align-self:center",
+        bubbleStyle:"font-size:11.5px;color:#d94d00;background:#fff0e7;border:1px solid #ffd8c4;padding:6px 13px;border-radius:20px;text-align:center"
+      };
+      const bri=msg.role==="bot";
+      return {
+        text:msg.text,
+        rowStyle: bri?"align-self:flex-end;max-width:74%":"align-self:flex-start;max-width:74%",
+        bubbleStyle: bri
+          ? "background:#fd5a07;color:#fff;padding:10px 13px;border-radius:14px 14px 4px 14px;font-size:13.5px;line-height:1.45"
+          : "background:#fff;border:1px solid #eaecf1;color:#0f172a;padding:10px 13px;border-radius:14px 14px 14px 4px;font-size:13.5px;line-height:1.45"
+      };
+    });
+    const signals=Object.keys(this.SIGLABELS).map(k=>{
+      const on=!!(L.signals&&L.signals[k]);
+      return {
+        label:this.SIGLABELS[k], mark: on?"✓":"○",
+        style:"display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:8px 10px;border-radius:9px;"+
+          (on?"background:#ecfdf3;color:#15803d;border:1px solid #bbf7d0":"background:#f8fafc;color:#94a3b8;border:1px solid #eef0f4")
+      };
+    });
+    const rec = L.bucket==="hot"
+      ? "Lead de alta intención — conviene que un asesor cierre la venta ahora."
+      : L.bucket==="warm"
+        ? "Interés real. Un asesor puede resolver dudas y empujar la decisión."
+        : "Sin señales fuertes todavía. Deja que el bot siga calificando.";
+
+    const suggestions = [
+      "¿Te agendo una demo gratuita?",
+      "Te comparto los precios de cada plan",
+      "¿Cuántas personas son en tu equipo?"
+    ].map(t=>({ text:t, onClick:()=>this.send(t) }));
+
+    const sel={
+      name:L.name, company:L.company, avatarColor:L.color, avatarStyle:this.avatarSoft(L.color), initials:this.initials(L.name),
+      pautaName:this.pautaDisplayName(L.pautaId),
+      chLabel:(this.CHMETA[L.channel]||this.CHMETA.ig).name,
+      chBadge:(this.CHMETA[L.channel]||this.CHMETA.ig).light,
+      score:L.score, dot:m.dot, bucketLabel:m.label, handedOff:!!L.handedOff,
+      reasons:L.reasons, signals, recommendation:rec,
+      badgeStyle:`display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;font-size:12px;font-weight:700;padding:5px 11px;border-radius:8px;background:${m.bg};color:${m.color}`,
+      pillStyle:`display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:6px 14px;border-radius:20px;background:${m.bg};color:${m.color}`,
+      ringStyle:`width:128px;height:128px;border-radius:50%;background:conic-gradient(${m.dot} ${deg}deg,#eef0f4 ${deg}deg);display:flex;align-items:center;justify-content:center`,
+      handoffBtnLabel: L.handedOff? "✓ Asignado a un asesor" : "Pasar a un asesor →",
+      handoffBtnStyle: L.handedOff
+        ? "text-align:center;padding:12px;border-radius:11px;font-size:13.5px;font-weight:700;background:#ecfdf3;color:#15803d;border:1px solid #bbf7d0;cursor:default"
+        : "text-align:center;padding:12px;border-radius:11px;font-size:13.5px;font-weight:700;background:#fd5a07;color:#fff;cursor:pointer"
+    };
+
+    // ---- panel de análisis (datos en vivo) ----
+    const total=s.leads.length;
+    const conversion= total? Math.round(counts.hot/total*100):0;
+    const avg= total? Math.round(s.leads.reduce((a,l)=>a+l.score,0)/total):0;
+    const seg=(c,color,extra)=>`flex:${c||0.0001};background:${color};height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12.5px;font-weight:700;${extra||""}`;
+    const metrics={
+      chats:total, conversion, avg, hot:counts.hot, warm:counts.warm, cold:counts.cold,
+      hotSeg:seg(counts.hot,"#16a34a","border-radius:9px 0 0 9px"),
+      warmSeg:seg(counts.warm,"#f59e0b"),
+      coldSeg:seg(counts.cold,"#cbd5e1","border-radius:0 9px 9px 0;color:#475569")
+    };
+    const attend=[...s.leads].filter(l=>l.bucket!=="cold").sort((a,b)=>b.score-a.score).map(l=>{
+      const mm=this.META[l.bucket];
+      return { name:l.name, company:l.company, initials:this.initials(l.name), color:l.color,
+        score:l.score, dot:mm.dot, bucketLabel:mm.label,
+        badge:`display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px;background:${mm.bg};color:${mm.color}`,
+        onOpen:()=>this.setState({view:"chat",selectedId:l.id}) };
+    });
+    const tabBase="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;";
+
+    // ---- menú de navegación ----
+    const navBase="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .12s;";
+    const navItem=(active)=> navBase + (active
+      ? "background:#fff;color:#1f2937;border:1px solid #e3e6ee;box-shadow:0 1px 4px rgba(15,23,42,.08)"
+      : "color:#374151;border:1px solid transparent");
+
+    // ---- configuración ----
+    const inputStyle="width:100%;box-sizing:border-box;border:1px solid #e2e5ec;background:#fff;border-radius:10px;padding:11px 14px;font-size:13.5px;font-family:inherit;outline:none;color:#0f172a";
+    const chip=(on)=>"white-space:nowrap;flex:none;padding:8px 16px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid "+(on?"#fd5a07;background:#fff0e7;color:#d94d00":"#e2e5ec;background:#fff;color:#64748b");
+    const cfgUI={
+      botName:s.cfgBotName, welcome:s.cfgWelcome, inputStyle,
+      onBotName:(e)=>this.setState({cfgBotName:e.target.value}),
+      onWelcome:(e)=>this.setState({cfgWelcome:e.target.value}),
+      context:s.cfgContext,
+      onContext:(e)=>this.setState({cfgContext:e.target.value}),
+      contextStyle:inputStyle+";min-height:120px;resize:vertical;line-height:1.5",
+      contextCount:(s.cfgContext||"").length+" caracteres",
+      tones:["Cercano","Profesional","Directo"].map(t=>({label:t,onClick:()=>this.setState({cfgTone:t}),style:chip(s.cfgTone===t)})),
+      ths:[60,70,80].map(v=>({label:"Score ≥ "+v,onClick:()=>this.setState({cfgHotMin:v}),style:chip(s.cfgHotMin===v)})),
+      hotMin:s.cfgHotMin, hotMax:s.cfgHotMin-1,
+      channels:[["WhatsApp","cfgWa","WhatsApp Business API"],["Instagram","cfgIg","Messenger / Instagram DM"]].map(([nm,k,desc])=>{
+        const on=!!s[k];
+        return { name:nm, desc, status:on?"Conectado":"Desconectado",
+          statusStyle:"font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;"+(on?"color:#15803d;background:#ecfdf3":"color:#94a3b8;background:#f1f5f9"),
+          onToggle:()=>this.setState({[k]:!this.state[k]}),
+          trackStyle:"flex:none;width:44px;height:25px;border-radius:14px;position:relative;cursor:pointer;transition:background .15s;background:"+(on?"#16a34a":"#cbd5e1"),
+          knobStyle:"position:absolute;top:2.5px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s;left:"+(on?"21px":"3px") };
+      })
+    };
+
+    // ---- gráfica interactiva ----
+    const CHART={
+      d:{labels:["9h","10h","11h","12h","13h","14h","15h","16h","17h","18h","19h","20h"], values:[8,14,11,19,16,26,22,31,24,28,18,12]},
+      w:{labels:["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], values:[122,148,135,171,164,88,54]},
+      m:{labels:["Sem 1","Sem 2","Sem 3","Sem 4"], values:[540,612,588,701]}
+    };
+    const ch=CHART[s.range]||CHART.d;
+    const mx=Math.max(...ch.values);
+    const bars=ch.values.map((v,i)=>{
+      const hov=s.hoverBar===i;
+      return {
+        value:v, label:ch.labels[i],
+        onEnter:()=>this.setState({hoverBar:i}),
+        onLeave:()=>this.setState({hoverBar:-1}),
+        colStyle:"flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px;height:100%;cursor:pointer;min-width:0",
+        tipStyle:"font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:#2a1263;color:#fff;transition:opacity .12s;"+(hov?"opacity:1":"opacity:0"),
+        barStyle:`width:66%;max-width:40px;height:${Math.max(4,Math.round(v/mx*100))}%;border-radius:7px 7px 3px 3px;transition:background .15s,box-shadow .15s;background:${hov?"linear-gradient(#d94d00,#c24400)":"linear-gradient(#ff8a50,#fd5a07)"};${hov?"box-shadow:0 6px 16px rgba(253,90,7,.45);":""}`,
+        lblStyle:"font-size:10.5px;white-space:nowrap;"+(hov?"color:#d94d00;font-weight:700":"color:#94a3b8")
+      };
+    });
+    const ranges=[["d","Hoy"],["w","Semana"],["m","Mes"]].map(([k,lb])=>({
+      label:lb,
+      onClick:()=>this.setState({range:k,hoverBar:-1}),
+      style:"padding:6px 15px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .12s;"+(s.range===k?"background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(15,23,42,.14)":"color:#64748b")
+    }));
+    const chartTotal=ch.values.reduce((a,b)=>a+b,0);
+
+    // ---- rendimiento por pauta (configurable vía Tweaks) ----
+    const cfg=this.pautaCfg();
+    const ticket=Number((this.props||{}).ticketMedio??350);
+    const eur=(n)=>"€"+Math.round(n).toLocaleString("es-ES");
+    const pautaStats=Object.values(this.PAUTAS).map(p=>{
+      const c=cfg[p.id]||{name:p.name,inv:0};
+      const ls=s.leads.filter(l=>l.pautaId===p.id);
+      const hot=ls.filter(l=>l.bucket==="hot").length;
+      const warm=ls.filter(l=>l.bucket==="warm").length;
+      const cold=ls.length-hot-warm;
+      const conv= ls.length? Math.round(hot/ls.length*100):0;
+      const salesN=hot*ticket;
+      const roi= c.inv>0? Math.round((salesN-c.inv)/c.inv*100) : 0;
+      const open=s.expandedPauta===p.id;
+      const cm=this.CHMETA[p.channel];
+      return { name:c.name, chLabel:cm.name, chBadge:cm.light,
+        leads:ls.length, hot, conv,
+        convBar:`width:${conv}%;height:100%;background:${conv>=60?"#16a34a":conv>=35?"#f59e0b":"#94a3b8"};border-radius:5px`,
+        sales:eur(salesN), inv:eur(c.inv),
+        roi:(roi>=0?"+":"")+roi+"%", roiColor: roi>=0?"#16a34a":"#dc2626",
+        caret: open?"▾":"▸",
+        onToggle:()=>this.setState({expandedPauta: open? null : p.id}),
+        detailStyle: open
+          ? "display:flex;gap:12px;flex-wrap:wrap;padding:13px 15px;margin:0 4px 10px;background:#f8f9fb;border:1px solid #eef0f4;border-radius:12px"
+          : "display:none",
+        dCpl: ls.length && c.inv>0? eur(c.inv/ls.length) : "—",
+        dTicket: eur(ticket),
+        dNet: eur(salesN-c.inv),
+        dNetColor: salesN-c.inv>=0?"#16a34a":"#dc2626",
+        dHot:hot, dWarm:warm, dCold:cold };
+    }).sort((a,b)=>b.conv-a.conv);
+
+    return {
+      bars, ranges, chartTotal, pautaStats,
+      groups, hotCount:counts.hot, warmCount:counts.warm, coldCount:counts.cold,
+      sel, msgs, typing:s.typing, draft:s.draft, suggestions,
+      isChat:s.view==="chat", isPanel:s.view==="panel", isConfig:s.view==="config", isAgente:s.view==="agente",
+      setAgente:()=>this.setState({view:"agente"}),
+      navAgenteStyle:navItem(s.view==="agente"),
+      isContacts:s.view==="contactos",
+      setContacts:()=>this.setState({view:"contactos"}),
+      navContactsStyle:navItem(s.view==="contactos"),
+      isCampanas:s.view==="campanas", setCampanas:()=>this.setState({view:"campanas"}), navCampanasStyle:navItem(s.view==="campanas"),
+      camp:(()=>{
+        const head=(t)=>({label:t, badge:"", onClick:null, style:"font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8b93a5;padding:14px 8px 6px;display:flex", badgeStyle:"display:none"});
+        const item=(t,{key,badge,demo,tpl}={})=>({
+          label:t, badge:badge||"",
+          onClick: key? ()=>this.setState({campType:key,campView:"list"})
+            : tpl? ()=>this.setState({campView:"templates",campTplSel:tpl})
+            : ()=>this.showToast(demo||"Demo: "+t),
+          style:"display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;"+((key&&s.campType===key&&s.campView==="list")||(tpl&&s.campView==="templates"&&s.campTplSel===tpl)?"background:#fff;color:#1f2937;border:1px solid #e3e6ee;box-shadow:0 1px 4px rgba(15,23,42,.08)":"color:#475569;border:1px solid transparent"),
+          badgeStyle: badge? "flex:none;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;color:#475569;background:#eef0f4" : "display:none"
+        });
+        const nav=[
+          head("Tipos"), item("🔍 Todos los tipos",{key:"all"}), item("✉ Automatizadas",{key:"auto"}), item("◎ Únicas",{key:"unica"}),
+          head("Etiquetas"), item("🏷 Todas las etiquetas",{demo:"Demo: filtro por etiquetas"}),
+          head("Plantillas"), item("📄 Todas las plantillas",{badge:String(2+s.ownTpls.length),tpl:"all"}), item("📑 Plantillas bri",{badge:"2",tpl:"bri"}), item("📃 Tus plantillas",{badge:String(s.ownTpls.length),tpl:"own"})
+        ];
+        const TPL_BODIES={
+          "Bienvenida con logo":"¡Hola [nombre]! 👋 Bienvenido a bri. Gracias por tu interés — mira nuestros planes y te ayudo a elegir el ideal para tu equipo: Starter, Pro o Enterprise.",
+          "Seguimiento de lead":"¡Hola [nombre]! 😊 Soy bri. Vimos que te interesó el Plan Pro: 14 días de prueba gratis, analítica avanzada y soporte en español. ¿Te agendo una demo de 15 minutos esta semana?"
+        };
+        const useTpl=(name,body)=>{
+          this.setState(st=>({campView:"list",campList:[...st.campList,{id:"c"+Date.now(), name:"Campaña · "+name, tplBody:body||TPL_BODIES[name]||"", tipo:"unica", estado:"Borrador", contacts:st.leads.length, updated:"ahora"}]}));
+          this.showToast('Campaña creada con la plantilla "'+name+'" — pulsa ▶ Enviar para entregarla');
+        };
+        const q=s.campSearch.trim().toLowerCase();
+        const rows=s.campList
+          .filter(c=> s.campType==="all" || c.tipo===s.campType)
+          .filter(c=> !q || c.name.toLowerCase().includes(q))
+          .map(c=>({ ...c,
+            estadoStyle:"justify-self:start;font-size:11px;font-weight:700;padding:3px 11px;border-radius:12px;"+(c.estado==="Enviada"?"background:#e8f8ee;color:#15803d":"background:#fffbeb;color:#b45309"),
+            sendLabel: c.estado==="Enviada"? "✓ Enviada" : "▶ Enviar",
+            sendStyle: c.estado==="Enviada"
+              ? "font-size:11.5px;font-weight:700;color:#15803d;background:#e8f8ee;padding:6px 12px;border-radius:8px;cursor:default"
+              : "font-size:11.5px;font-weight:700;color:#fff;background:#6035d2;padding:6px 12px;border-radius:8px;cursor:pointer",
+            onSend:()=>{ if(c.estado!=="Enviada"){
+              this.setState(st=>({
+                campList:st.campList.map(x=>x.id===c.id?{...x,estado:"Enviada",updated:"ahora"}:x),
+                leads: c.tplBody? st.leads.map(l=>({...l, time:"ahora", msgs:[...l.msgs,{role:"bot",text:c.tplBody.split("[nombre]").join(l.name.split(" ")[0])}]})) : st.leads
+              }));
+              this.showToast(c.tplBody? "Campaña entregada en las "+c.contacts+" conversaciones" : "Campaña enviada a "+c.contacts+" contactos");
+            } },
+            onDelete:()=>{ this.setState(st=>({campList:st.campList.filter(x=>x.id!==c.id)})); this.showToast("Campaña eliminada"); }
+          }));
+        return {
+          nav, rows, empty:rows.length===0,
+          showTpls:s.campView==="templates", showList:s.campView==="list",
+          onUse1:()=>useTpl("Bienvenida con logo"),
+          onUse2:()=>useTpl("Seguimiento de lead"),
+          ownTpls:s.ownTpls.map((t,i)=>{
+            const editing=s.tplEditing===i;
+            return { ...t, editing, notEditing:!editing,
+              editName:s.tplEditName, editBody:s.tplEditBody,
+              onEditName:(e)=>this.setState({tplEditName:e.target.value}),
+              onEditBody:(e)=>this.setState({tplEditBody:e.target.value}),
+              onEdit:()=>this.setState({tplEditing:i, tplEditName:t.name, tplEditBody:t.body}),
+              onSave:()=>{ this.setState(st=>({tplEditing:-1, ownTpls:st.ownTpls.map((x,j)=>j===i?{name:st.tplEditName.trim()||x.name, body:st.tplEditBody.trim()||x.body}:x)})); this.showToast("Plantilla guardada"); },
+              onUse:()=>useTpl(t.name, t.body),
+              onDelete:()=>{ this.setState(st=>({tplEditing:-1, ownTpls:st.ownTpls.filter((x,j)=>j!==i)})); this.showToast("Plantilla eliminada"); } };
+          }),
+          onNewTpl:()=>{
+            const n=s.ownTpls.length+1;
+            this.setState(st=>({ownTpls:[...st.ownTpls,{name:"Mi plantilla "+n, body:"¡Hola [nombre]! Gracias por escribirnos. Cuéntame qué necesitas y te ayudo a elegir el plan ideal para tu equipo. — bri"}]}));
+            this.showToast("Plantilla propia creada");
+          },
+          search:s.campSearch, onSearch:(e)=>this.setState({campSearch:e.target.value}),
+          onDocs:()=>this.showToast("Demo: aquí se abriría la documentación"),
+          onActions:()=>this.showToast("Demo: acciones en lote"),
+          onNew:()=>{
+            const n=s.campList.length+1;
+            this.setState(st=>({campList:[...st.campList,{id:"c"+Date.now(), name:"Campaña "+n+" · Promo bri", tipo:(n%2?"unica":"auto"), estado:"Borrador", contacts:st.leads.length, updated:"ahora"}]}));
+            this.showToast("Campaña creada como borrador");
+          }
+        };
+      })(),
+      isBuscar:s.view==="buscar", setBuscar:()=>this.setState({view:"buscar"}), navBuscarStyle:navItem(s.view==="buscar"),
+      isAyuda:s.view==="ayuda", setAyuda:()=>this.setState({view:"ayuda"}),
+      toastOn:!!s.toast, toastMsg:s.toast,
+      onAttach:(e)=>this.attachFile(e),
+      bus:(()=>{
+        const q=s.busQ.trim().toLowerCase();
+        const results=!q? [] : s.leads.map(l=>{
+          const hitMsg=l.msgs.find(m=>m.text.toLowerCase().includes(q));
+          const hit=l.name.toLowerCase().includes(q)||l.company.toLowerCase().includes(q)||hitMsg;
+          if(!hit) return null;
+          return { name:l.name, initials:this.initials(l.name),
+            avatar:"flex:none;width:34px;height:34px;border-radius:10px;"+this.avatarSoft(l.color)+";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px",
+            snippet: hitMsg? "…"+hitMsg.text : l.company,
+            onOpen:()=>this.setState({view:"chat",selectedId:l.id}) };
+        }).filter(Boolean);
+        return { q:s.busQ, onQ:(e)=>this.setState({busQ:e.target.value}), results,
+          emptyQ:!q, noResults:!!q && results.length===0, total:s.leads.length };
+      })(),
+      ayudaItems:[
+        ["📖","Documentación","Guías para configurar tu agente y tus pautas","Demo: aquí se abriría la documentación"],
+        ["💬","Chatear con soporte","Habla con el equipo de bri","Demo: aquí se abriría el chat de soporte"],
+        ["🎓","Tutoriales en video","Aprende a sacar el máximo a bri","Demo: aquí se abrirían los tutoriales"],
+        ["✉","soporte@bri.chat","Escríbenos por correo","Demo: aquí se abriría tu correo"]
+      ].map(([icon,title,desc,msg])=>({icon,title,desc,onClick:()=>this.showToast(msg)})),
+      con:(()=>{
+        const INFO={ l1:["carlos.ruiz@techcorp.es","🇪🇸 Madrid, España"], l2:["ana@estudionorte.com","🇲🇽 CDMX, México"], l0:["visitante@web.chat","🌐 Desconocida"], l3:["lucia@marcaviva.co","🇨🇴 Bogotá, Colombia"], l4:["diego.marin@gmail.com","🇦🇷 Buenos Aires, Argentina"] };
+        const q=s.conSearch.trim().toLowerCase();
+        const rows=s.leads
+          .filter(l=> s.conFilter==="all" || l.bucket===s.conFilter)
+          .filter(l=>!q || l.name.toLowerCase().includes(q) || (INFO[l.id]||[""])[0].includes(q) || l.company.toLowerCase().includes(q))
+          .map(l=>{
+            const m=this.META[l.bucket];
+            const n=Math.max(1,Math.round(l.score/20));
+            return {
+              name:l.name, initials:this.initials(l.name),
+              avatar:"flex:none;width:30px;height:30px;border-radius:9px;"+this.avatarSoft(l.color)+";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px",
+              email:(INFO[l.id]||["—"])[0], location:(INFO[l.id]||["","—"])[1],
+              company:l.company==="—"?"Desconocida":l.company,
+              segment:m.label,
+              segStyle:`justify-self:start;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${m.bg};color:${m.color};white-space:nowrap`,
+              active:l.time, stars:"★".repeat(n)+"☆".repeat(5-n),
+              onPreview:()=>this.setState({view:"chat",selectedId:l.id}),
+              check: s.conSel[l.id]? "✓" : "",
+              checkStyle:"width:16px;height:16px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;"+(s.conSel[l.id]?"background:#6035d2;color:#fff;border:1.5px solid #6035d2":"border:1.5px solid #d5d9e2;color:transparent"),
+              onCheck:()=>this.setState(st=>({conSel:{...st.conSel,[l.id]:!st.conSel[l.id]}}))
+            };
+          });
+        const FL={all:"Todos",hot:"Casi seguros",warm:"Tal vez",cold:"Poco probables"};
+        const ORDER=["all","hot","warm","cold"];
+        return {
+          banner:s.conBanner, onCloseBanner:()=>this.setState({conBanner:false}),
+          count:s.leads.length, search:s.conSearch,
+          onSearch:(e)=>this.setState({conSearch:e.target.value}),
+          onImport:(e)=>this.importContacts(e),
+          onNew:()=>this.newContact(),
+          onActions:()=>{ this.exportReport(); this.showToast("Reporte CSV descargado"); },
+          onFilter:()=>this.setState({conFilter:ORDER[(ORDER.indexOf(s.conFilter)+1)%ORDER.length]}),
+          filterLabel:FL[s.conFilter],
+          filterStyle:"white-space:nowrap;font-size:12.5px;font-weight:700;padding:8px 13px;border-radius:9px;cursor:pointer;border:1px solid "+(s.conFilter==="all"?"#e2e5ec;background:#fff;color:#475569":"#fd5a07;background:#fff0e7;color:#d94d00"),
+          rows, empty:rows.length===0
+        };
+      })(),
+      agNav:(()=>{
+        const head=(t)=>({label:t, badge:"", onClick:null, style:"font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8b93a5;padding:14px 8px 6px;display:flex", badgeStyle:"display:none"});
+        const item=(t,{key,badge,badgeColor}={})=>({
+          label:t, badge:badge||"",
+          onClick: key? ()=>this.setState({agSection:key}) : ()=>{},
+          style:"display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;"+(key&&s.agSection===key?"background:#fff;color:#1f2937;border:1px solid #e3e6ee;box-shadow:0 1px 4px rgba(15,23,42,.08)":"color:#475569;border:1px solid transparent"),
+          badgeStyle: badge? `flex:none;font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:10px;color:#fff;background:${badgeColor||"#16a34a"}` : "display:none"
+        });
+        return [
+          head("Evaluar"), item("Playground",{key:"playground"}), item("Sugerencias IA",{key:"sugerencias",badge:"NEW"}), item("Analíticas",{key:"analiticas"}), item("Observabilidad",{key:"observabilidad",badge:"NEW"}),
+          head("Agente"), item("Activación",{key:"activacion",badge:(s.actEnabled?"":"requerida"),badgeColor:"#d94d00"}), item("Configuración IA",{key:"configia",badge:"1 sugerencia",badgeColor:"#6035d2"}), item("Facturación",{key:"facturacion"}),
+          head("Orientación"), item("Instrucciones",{key:"instrucciones"}), item("Enrutamiento",{key:"enrutamiento"}),
+          head("Entrenar"), item("Preguntas y respuestas",{key:"preguntas"}), item("Páginas web",{key:"paginas"}), item("Archivos",{key:"archivos"})
+        ];
+      })(),
+      agIsPlay:s.agSection==="playground", agIsSug:s.agSection==="sugerencias", agIsAna:s.agSection==="analiticas", agIsObs:s.agSection==="observabilidad", agIsAct:s.agSection==="activacion",
+      agIsCfg:s.agSection==="configia", agIsFac:s.agSection==="facturacion",
+      agIsIns:s.agSection==="instrucciones", agIsRut:s.agSection==="enrutamiento", agIsQa:s.agSection==="preguntas", agIsWeb:s.agSection==="paginas", agIsFile:s.agSection==="archivos",
+      ...(()=>{
+        const track=(on)=>`flex:none;width:40px;height:23px;border-radius:13px;position:relative;cursor:pointer;transition:background .15s;background:${on?"#16a34a":"#cbd5e1"}`;
+        const knob=(on)=>`position:absolute;top:2.5px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s;left:${on?"19px":"3px"}`;
+        const addIns=(text)=>this.setState(st=>({insDraft:"", insList:[...st.insList,{text,on:true}]}));
+        const ins={
+          suggestions:["Pedir el tamaño del equipo antes de recomendar un plan","Usar siempre los nombres y precios exactos de los planes","Nunca prometer descuentos que no estén publicados"].map(t=>({text:t,onClick:()=>addIns(t)})),
+          draft:s.insDraft, onDraft:(e)=>this.setState({insDraft:e.target.value}),
+          onKey:(e)=>{ if(e.key==="Enter"){ e.preventDefault(); if(s.insDraft.trim()) addIns(s.insDraft.trim()); } },
+          onAdd:()=>{ if(s.insDraft.trim()) addIns(s.insDraft.trim()); },
+          quickLabel:"✨ Configurar en 2 minutos",
+          onQuick:()=>this.setState(st=>({insList:[...st.insList,
+            {text:"Tono cercano y profesional, tutea al cliente",on:true},
+            {text:"Responde en máximo 2 frases y termina con una pregunta",on:true},
+            {text:"Si el cliente pide hablar con una persona, escala de inmediato",on:true}]})),
+          count:s.insList.length, empty:s.insList.length===0,
+          items:s.insList.map((it,i)=>({ text:it.text,
+            track:track(it.on), knob:knob(it.on),
+            onToggle:()=>this.setState(st=>({insList:st.insList.map((x,j)=>j===i?{...x,on:!x.on}:x)})),
+            onDelete:()=>this.setState(st=>({insList:st.insList.filter((x,j)=>j!==i)})),
+            textStyle:"flex:1;font-size:13px;font-weight:600;color:"+(it.on?"#1f2937":"#b3b9c6") }))
+        };
+        const addRut=(text)=>this.setState(st=>({rutRules:[...st.rutRules,{text,on:true}]}));
+        const rut={
+          suggestions:["Enrutar solicitudes de reembolso al equipo de soporte","Enrutar preguntas sobre facturación a un asesor","Enrutar a quien pida una demo directamente a María"].map(t=>({text:t,onClick:()=>addRut(t)})),
+          onEsc:()=>this.setState({rutEsc:!s.rutEsc}), escTrack:track(s.rutEsc), escKnob:knob(s.rutEsc),
+          count:s.rutRules.length, empty:s.rutRules.length===0,
+          items:s.rutRules.map((it,i)=>({ text:it.text,
+            track:track(it.on), knob:knob(it.on),
+            onToggle:()=>this.setState(st=>({rutRules:st.rutRules.map((x,j)=>j===i?{...x,on:!x.on}:x)})),
+            onDelete:()=>this.setState(st=>({rutRules:st.rutRules.filter((x,j)=>j!==i)})),
+            textStyle:"flex:1;font-size:13px;font-weight:600;color:"+(it.on?"#1f2937":"#b3b9c6") }))
+        };
+        const qa={
+          suggestions:["¿Cuáles son los planes y precios?","¿Cómo puedo obtener un reembolso?","¿Hay prueba gratuita?"].map(t=>({text:t,onClick:()=>this.setState({qaQ:t})})),
+          q:s.qaQ, a:s.qaA,
+          onQ:(e)=>this.setState({qaQ:e.target.value}),
+          onA:(e)=>this.setState({qaA:e.target.value}),
+          onAdd:()=>{ if(s.qaQ.trim()&&s.qaA.trim()) this.setState(st=>({qaQ:"",qaA:"",qaList:[...st.qaList,{q:st.qaQ.trim(),a:st.qaA.trim()}]})); },
+          count:s.qaList.length, empty:s.qaList.length===0,
+          items:s.qaList.map((it,i)=>({ ...it, onDelete:()=>this.setState(st=>({qaList:st.qaList.filter((x,j)=>j!==i)})) }))
+        };
+        const web={
+          draft:s.webDraft, onDraft:(e)=>this.setState({webDraft:e.target.value}),
+          onImport:()=>this.addWebDomain(),
+          importStyle:"flex:none;font-size:12.5px;font-weight:700;padding:10px 16px;border-radius:10px;"+(s.webDraft.trim()?"color:#fff;background:#6035d2;cursor:pointer":"color:#a9b0c0;background:#eceef3;cursor:default"),
+          count:s.webDomains.length, empty:s.webDomains.length===0,
+          items:s.webDomains.map((it,i)=>({ domain:it.domain,
+            status: it.ready? it.pages+" páginas indexadas · listo" : "Explorando el sitio…",
+            dot:"flex:none;width:11px;height:11px;border-radius:50%;background:"+(it.ready?"#16a34a":"#cbd5e1"),
+            onDelete:()=>this.setState(st=>({webDomains:st.webDomains.filter((x,j)=>j!==i)})) }))
+        };
+        const fmt=(b)=> b>1048576? (b/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
+        const tr={
+          onSample:()=>this.downloadSampleCsv(),
+          onFiles:(e)=>this.onTrainFiles(e),
+          count:s.fileList.length, empty:s.fileList.length===0,
+          items:s.fileList.map((it,i)=>({ name:it.name, meta:fmt(it.size)+" · importado el "+it.date,
+            onDelete:()=>this.setState(st=>({fileList:st.fileList.filter((x,j)=>j!==i)})) }))
+        };
+        return {ins,rut,qa,web,tr};
+      })(),
+      fac:(()=>{
+        const spentPerChat=0.012;
+        const chats=s.leads.reduce((a,l)=>a+l.msgs.filter(m=>m.role==="bot").length,0);
+        const spent=chats*spentPerChat;
+        const total=5;
+        const eur=(n,d)=>"€"+n.toFixed(d??2).replace(".",",");
+        const rows=[[2,0.02],[1.5,0.015],[1,0.01],[0.5,0.005],[0,0]];
+        const usage=[0.4,0.9,0.6,1.2,0.8,1.5,1.1];
+        const mx=2;
+        return {
+          creditLeft:eur(Math.max(0,total-spent)), creditTotal:eur(total),
+          avgCost:eur(spentPerChat,3),
+          escOpts:[["inbox","Escalar a la bandeja de entrada (predeterminado)"],["advisor","Transferir a un asesor asignado (Plus)"]].map(([k,label])=>({label, onClick:()=>this.setState({facEsc:k}), style:chip(s.facEsc===k)})),
+          onDemo1:()=>this.showToast("Demo: aquí verías tus tarjetas guardadas"),
+          onDemo2:()=>this.showToast("Demo: aquí verías tu historial de facturas"),
+          onDemo3:()=>this.showToast("Demo: aquí se abriría el selector de planes"),
+          onDemo4:()=>this.showToast("Demo: aquí contactarías al equipo de bri"),
+          onDemo5:()=>this.showToast("Demo: aquí actualizarías al plan Plus"),
+          ranges:["Mensual","Semanal"].map(r=>({label:r, onClick:()=>this.setState({facRange:r}), style:chip(s.facRange===r)})),
+          grid:rows.map(([lv,rv],i)=>({
+            left:eur(lv), right:eur(rv,3),
+            bars: i===rows.length-1? usage.map(v=>({style:`flex:1;max-width:34px;height:${Math.max(3,Math.round(v/mx*180))}px;margin-bottom:-1.5px;border-radius:5px 5px 0 0;background:linear-gradient(#8b5cf6,#6035d2);opacity:.9`})) : []
+          }))
+        };
+      })(),
+      ci:(()=>{
+        const track=(on,dis)=>`flex:none;width:44px;height:25px;border-radius:14px;position:relative;cursor:${dis?"default":"pointer"};transition:background .15s;background:${on?"#16a34a":"#cbd5e1"};${dis?"opacity:.45;":""}`;
+        const knob=(on)=>`position:absolute;top:2.5px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s;left:${on?"21px":"3px"}`;
+        const tg=(key)=>({["on"+key]:()=>this.setState({["ci"+key]:!s["ci"+key]}), [key.charAt(0).toLowerCase()+key.slice(1)+"Track"]:track(s["ci"+key]), [key.charAt(0).toLowerCase()+key.slice(1)+"Knob"]:knob(s["ci"+key])});
+        const resOff=!s.ciResAuto;
+        return {
+          logoCircle:"flex:none;width:86px;height:86px;border-radius:50%;border:1.5px dashed #cfd4e0;display:flex;align-items:center;justify-content:center;font-size:26px;color:#b3b9c6;overflow:hidden;"+(s.ciLogo?`background:url(${s.ciLogo}) center/cover;border-style:solid`:"background:#fafafc"),
+          logoPlaceholder: s.ciLogo? "" : "🖼",
+          onLogo:(e)=>this.onCiLogo(e),
+          onGen:()=>this.ciGenerate(),
+          genLabel: s.ciGenLoading? "Generando…" : "✨ Generar con IA",
+          genStyle:"margin-left:auto;font-size:12.5px;font-weight:700;cursor:pointer;color:"+(s.ciGenLoading?"#a390d8":"#6035d2"),
+          charCount:(s.cfgContext||"").length+" / 2.000 caracteres",
+          ...tg("Fallback"), ...tg("Images"), ...tg("Audio"),
+          ...tg("EscNoAns"), ...tg("EscFrust"), ...tg("ResSuggest"), ...tg("ResAuto"),
+          ...tg("AccSegments"), ...tg("AccLocation"), ...tg("AccDevice"), ...tg("AccCustom"), ...tg("Budget"),
+          accSegmentsLbl:"font-size:13.5px;font-weight:600;color:"+(s.ciAccSegments?"#1f2937":"#8b93a5"),
+          accLocationLbl:"font-size:13.5px;font-weight:600;color:"+(s.ciAccLocation?"#1f2937":"#8b93a5"),
+          accDeviceLbl:"font-size:13.5px;font-weight:600;color:"+(s.ciAccDevice?"#1f2937":"#8b93a5"),
+          accCustomLbl:"font-size:13.5px;font-weight:600;color:"+(s.ciAccCustom?"#1f2937":"#8b93a5"),
+          budgetLbl:"font-size:13.5px;font-weight:600;color:"+(s.ciBudget?"#1f2937":"#8b93a5"),
+          budgetOn:s.ciBudget,
+          budgetVal:s.ciBudgetVal,
+          onBudgetVal:(e)=>this.setState({ciBudgetVal:e.target.value}),
+          onSupport:()=>this.setState({view:"ayuda"}),
+          sources:[["all","Todas las fuentes"],["context","Solo contexto del negocio"],["faq","Solo preguntas y respuestas"]].map(([k,label])=>({label, onClick:()=>this.setState({ciSource:k}), style:chip(s.ciSource===k)})),
+          styles:["Conversacional","Formal"].map(v=>({label:v, onClick:()=>this.setState({ciStyle:v}), style:chip(s.ciStyle===v)})),
+          styleHint: s.ciStyle==="Conversacional"? "Respuestas naturales tipo chat, puede dividirse en varios mensajes." : "Respuestas completas y estructuradas en un solo mensaje.",
+          langs:[["auto","Detección automática"],["es","Español"],["en","Inglés"]].map(([k,label])=>({label, onClick:()=>this.setState({ciLang:k}), style:chip(s.ciLang===k)})),
+          resOff,
+          resDelay:s.ciResDelay,
+          onResDelay:(e)=>this.setState({ciResDelay:e.target.value}),
+          resLbl:"font-size:12px;font-weight:600;color:"+(resOff?"#b3b9c6":"#8b93a5"),
+          resInput:"width:140px;box-sizing:border-box;border:1px solid #e2e5ec;border-radius:10px;padding:10px 13px;font-size:13.5px;font-family:inherit;outline:none;"+(resOff?"background:#f1f3f6;color:#b3b9c6":"background:#fff;color:#0f172a"),
+          resUnits:["Horas","Días"].map(u=>({label:u, onClick:()=> resOff? null : this.setState({ciResUnit:u}), style:chip(s.ciResUnit===u && !resOff)+(resOff?";opacity:.5;cursor:default":"")}))
+        };
+      })(),
+      act:(()=>{
+        const track=(on,dis)=>`flex:none;width:44px;height:25px;border-radius:14px;position:relative;cursor:${dis?"default":"pointer"};transition:background .15s;background:${on?"#16a34a":"#cbd5e1"};${dis?"opacity:.45;":""}`;
+        const knob=(on)=>`position:absolute;top:2.5px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s;left:${on?"21px":"3px"}`;
+        const fieldsOff=!s.actReact;
+        return {
+          showWarn:!s.actEnabled,
+          onFix:()=>this.setState({actEnabled:true}),
+          onToggleMain:()=>this.setState({actEnabled:!s.actEnabled}),
+          mainTrack:track(s.actEnabled), mainKnob:knob(s.actEnabled),
+          warnIcon: s.actEnabled? "display:none" : "color:#d94d00;font-size:15px",
+          channels:[["all","Todos los canales entrantes"],["wa","Solo WhatsApp"],["ig","Solo Instagram"]].map(([k,label])=>({label, onClick:()=>this.setState({actChannel:k}), style:chip(s.actChannel===k)})),
+          onToggleReact:()=>this.setState({actReact:!s.actReact}),
+          reactTrack:track(s.actReact), reactKnob:knob(s.actReact),
+          fieldsOff,
+          delay:s.actDelay,
+          onDelay:(e)=>this.setState({actDelay:e.target.value}),
+          delayLbl:"font-size:12px;font-weight:600;color:"+(fieldsOff?"#b3b9c6":"#8b93a5"),
+          delayInput:"width:140px;box-sizing:border-box;border:1px solid #e2e5ec;border-radius:10px;padding:10px 13px;font-size:13.5px;font-family:inherit;outline:none;"+(fieldsOff?"background:#f1f3f6;color:#b3b9c6":"background:#fff;color:#0f172a"),
+          units:["Horas","Días"].map(u=>({label:u, onClick:()=> fieldsOff? null : this.setState({actUnit:u}), style:chip(s.actUnit===u && !fieldsOff)+(fieldsOff?";opacity:.5;cursor:default":"")})),
+          onToggleOffice:()=>this.setState({actOffice:!s.actOffice}),
+          officeTrack:track(s.actOffice), officeKnob:knob(s.actOffice),
+          officeLbl:"font-size:13.5px;font-weight:600;color:"+(s.actOffice?"#1f2937":"#8b93a5")
+        };
+      })(),
+      agAnalyzeLabel: s.agSugsLoading? "Analizando…" : "⟳ Analizar",
+      agAnalyzeStyle:"font-size:13.5px;font-weight:700;color:#fff;background:"+(s.agSugsLoading?"#a390d8":"#6035d2")+";padding:11px 26px;border-radius:11px;cursor:pointer;box-shadow:0 6px 16px rgba(96,53,210,.3)",
+      agAnalyze:()=>this.agAnalyze(),
+      agSugs:s.agSugs.map((sg,i)=>({ ...sg,
+        onKeep:()=>this.setSug(i,"keep"), onIgnore:()=>this.setSug(i,"ignore"),
+        statusLabel: sg.status==="keep"?"✓ aplicada": sg.status==="ignore"?"ignorada":"",
+        statusStyle: sg.status? "margin-left:auto;flex:none;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:10px;"+(sg.status==="keep"?"color:#15803d;background:#e8f8ee":"color:#94a3b8;background:#f1f5f9") : "display:none"
+      })),
+      agFunnel:(()=>{
+        const total=s.leads.length;
+        const replied=s.leads.filter(l=>l.msgs.some(m=>m.role==="user")).length;
+        const hot=counts.hot;
+        const handed=s.leads.filter(l=>l.handedOff).length;
+        const mk=(label,value,color)=>({label, value, bar:`width:${total?Math.max(4,Math.round(value/total*100)):0}%;height:100%;background:${color};border-radius:6px`});
+        return [ mk("Conversaciones",total,"#6035d2"), mk("Con respuesta",replied,"#8b5cf6"), mk("Casi seguros",hot,"#16a34a"), mk("Pasados a asesor",handed,"#fd5a07") ];
+      })(),
+      agTopics:[["Precios y planes",42],["Demo del producto",27],["Soporte técnico",18],["Otros",13]].map(([label,pct])=>({label, pct, bar:`width:${pct}%;height:100%;background:#6035d2;border-radius:6px;opacity:${.45+pct/80}`})),
+      agObsFilter:()=>this.showToast("Demo: filtro de conversaciones"),
+      agObsList:s.leads.map(l=>({
+        name:l.name, meta:l.msgs.length+" mensajes · "+this.META[l.bucket].label,
+        onSelect:()=>this.setState({agObsId:l.id}),
+        style:"padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:2px;"+(s.agObsId===l.id?"background:#f3effc;border:1px solid #d9cdf5":"border:1px solid transparent")
+      })),
+      agObsTitle:(()=>{ const L2=s.leads.find(l=>l.id===s.agObsId); return L2? "Traza · "+L2.name : "Traza de ejemplo — elige una conversación"; })(),
+      agObsSteps:(()=>{
+        const L2=s.leads.find(l=>l.id===s.agObsId);
+        const n=L2? L2.msgs.length : 4;
+        const base="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e9ebf1;padding:13px 15px;box-shadow:0 4px 12px -6px rgba(15,23,42,.14);";
+        const ic=(bg,fg)=>`flex:none;width:30px;height:30px;border-radius:9px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:14px`;
+        return [
+          {icon:"⌕", label:"Búsqueda en contexto", time:(180+n*22)+"ms", style:base+"border-radius:12px 12px 0 0", iconStyle:ic("#e1f2fb","#0369a1")},
+          {icon:"🛡", label:"Guardrails", time:(240+n*18)+"ms", style:base+"border-top:none", iconStyle:ic("#e8f8ee","#15803d")},
+          {icon:"⚙", label:"Razonamiento del agente", time:((900+n*160)/1000).toFixed(1).replace(".",",")+"s", style:base+"border-top:none;border-radius:0 0 12px 12px", iconStyle:ic("#f0e9fc","#6d28d9")}
+        ];
+      })(),
+      agModels:["auto","Claude Sonnet","Claude Haiku"].map(mo=>({label:mo==="auto"?"Elegir automáticamente":mo, onClick:()=>this.setState({agModel:mo}), style:chip(s.agModel===mo)})),
+      agGuides:["Conservador","Equilibrado","Creativo"].map(g=>({label:g, onClick:()=>this.setState({agGuide:g}), style:chip(s.agGuide===g)})),
+      agGuideHint: s.agGuide==="Conservador"? "Solo responde cuando la respuesta está en el contexto; si no, deriva a un asesor."
+        : s.agGuide==="Equilibrado"? "Usa el contexto y lo complementa con criterio comercial."
+        : "Persuasivo y proactivo: siempre propone el siguiente paso.",
+      agMsgs:s.agMsgs.map(m=>{
+        const bot=m.role==="bot";
+        return { text:m.text,
+          rowStyle: bot?"align-self:flex-start;max-width:85%":"align-self:flex-end;max-width:85%",
+          bubbleStyle: bot
+            ? "background:#fff;border:1px solid #eaecf1;color:#0f172a;padding:9px 12px;border-radius:14px 14px 14px 4px;font-size:12.5px;line-height:1.45"
+            : "background:#6035d2;color:#fff;padding:9px 12px;border-radius:14px 14px 4px 14px;font-size:12.5px;line-height:1.45" };
+      }),
+      agTyping:s.agTyping, agDraft:s.agDraft,
+      agInput:(e)=>this.setState({agDraft:e.target.value}),
+      agKey:(e)=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); this.agSend(); } },
+      agSend:()=>this.agSend(),
+      agReset:()=>this.setState({agMsgs:[{role:"bot",text:"¡Hola! 👋 Soy bri en modo de pruebas. Escríbeme como si fueras un cliente."}],agDraft:"",agTyping:false}),
+      setChat:()=>this.setState({view:"chat"}),
+      setPanel:()=>this.setState({view:"panel"}),
+      setConfig:()=>this.setState({view:"config"}),
+      navChatStyle:navItem(s.view==="chat"),
+      navPanelStyle:navItem(s.view==="panel"),
+      navConfigStyle:navItem(s.view==="config"),
+      navIdleStyle:navItem(false)+";color:#64748b",
+      navHelpStyle:navItem(false)+";color:#d94d00",
+      navBadgeStyle:"flex:none;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#ef2d56;color:#fff;font-size:11px;font-weight:800;display:"+(counts.hot>0?"flex":"none")+";align-items:center;justify-content:center",
+      cfg:cfgUI,
+      metrics, attend,
+      onInput:this.onInput, onKey:this.onKey, onSend:()=>this.send(), onTakeOver:()=>this.takeOver(),
+      onExport:()=>this.exportReport()
+    };
+  }
+}
+</script>
+</body>
+</html>

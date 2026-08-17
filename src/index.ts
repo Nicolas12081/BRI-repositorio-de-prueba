@@ -3,26 +3,34 @@ import express, { Request, Response } from "express";
 import { env, whatsappEnabled } from "./env";
 import { handleMessage } from "./claude";
 import { sendText, sendImage } from "./whatsapp";
-import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads } from "./db";
+import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
 import { getTenant, resolveTenant, listTenants, saveTenantConfig } from "./tenants";
 import type { Tenant } from "./tenants";
 import { getProvider } from "./llm";
 import type { Business, MenuItem } from "./data";
+import { getWhatsapp, saveWhatsapp, whatsappConnected } from "./settings";
 import { chatPage } from "./webchat";
 import { consolePage } from "./console";
 
-const waEnabled = whatsappEnabled();
+whatsappEnabled(); // solo informa en consola al arrancar
 
 const app = express();
 app.use(express.json());
+
+// Logos e imagenes de marca de Bri.
+app.use("/assets", express.static(path.join(__dirname, "..", "assets")));
+
+// Diseno oficial de Bri (el export del usuario) servido tal cual en /bri.
+app.use("/bri", express.static(path.join(__dirname, "..", "bri-app")));
 
 // Salud del servidor
 app.get("/", (_req: Request, res: Response) => {
   res.type("html").send(
     `<p>Chatbot multi-negocio activo.</p><ul>` +
-      `<li><a href="/console">Consola del negocio (bandeja + chat)</a></li>` +
+      `<li><a href="/bri/">Bri — diseño oficial (con IA real)</a></li>` +
+      `<li><a href="/console">Consola conectada (WhatsApp + datos reales)</a></li>` +
       `<li><a href="/chat">Chat de prueba estilo WhatsApp</a></li>` +
       `<li><a href="/admin">Panel de pedidos y reservas</a></li></ul>`
   );
@@ -75,7 +83,75 @@ app.get("/api/tenants", (_req: Request, res: Response) => {
 
 /** Estado del sistema (para mostrar en configuracion). */
 app.get("/api/info", (_req: Request, res: Response) => {
-  res.json({ provider: getProvider().name, whatsapp: waEnabled });
+  res.json({ provider: getProvider().name, whatsapp: whatsappConnected() });
+});
+
+/**
+ * Completado de IA generico para el diseno oficial de Bri (window.claude.complete).
+ * Recibe {system, messages:[{role,content}], max_tokens} y devuelve el texto crudo.
+ */
+app.post("/api/complete", async (req: Request, res: Response) => {
+  const system = String(req.body?.system ?? "");
+  const rawMsgs: any[] = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const maxTokens = Math.min(Number(req.body?.max_tokens) || 500, 1024);
+  const messages = rawMsgs.map((m) =>
+    m?.role === "assistant"
+      ? { role: "assistant" as const, text: String(m.content ?? ""), toolCalls: [] }
+      : { role: "user" as const, text: String(m?.content ?? "") }
+  );
+  try {
+    const r = await getProvider().complete({ system, tools: [], messages, maxTokens, temperature: 0.6 });
+    res.json({ completion: r.text });
+  } catch (err) {
+    console.error("[api/complete] Error:", err);
+    res.status(500).json({ error: "No se pudo completar." });
+  }
+});
+
+/** Estado y configuracion de la conexion de WhatsApp (nunca devuelve el token). */
+app.get("/api/whatsapp", (_req: Request, res: Response) => {
+  const w = getWhatsapp();
+  const base = (w.publicBaseUrl || "").replace(/\/$/, "");
+  res.json({
+    conectado: whatsappConnected(),
+    hasToken: Boolean(w.token),
+    verifyToken: w.verifyToken,
+    publicBaseUrl: w.publicBaseUrl,
+    webhookUrl: base ? `${base}/webhook` : "(define la URL publica primero)",
+    agentes: listTenants().map((t) => ({
+      id: t.id,
+      nombre: t.business.nombre,
+      phone_number_id: t.business.whatsapp_phone_number_id || "",
+    })),
+  });
+});
+
+/** Guarda credenciales de WhatsApp (token, verify token, URL publica). */
+app.put("/api/whatsapp", (req: Request, res: Response) => {
+  const patch: Record<string, string> = {};
+  if (typeof req.body?.token === "string" && req.body.token.trim()) patch.token = req.body.token.trim();
+  if (typeof req.body?.verifyToken === "string") patch.verifyToken = req.body.verifyToken.trim();
+  if (typeof req.body?.publicBaseUrl === "string") patch.publicBaseUrl = req.body.publicBaseUrl.trim();
+  saveWhatsapp(patch);
+  res.json({ ok: true, conectado: whatsappConnected() });
+});
+
+/** Enlaza (o desenlaza) un numero de WhatsApp con un agente/negocio. */
+app.put("/api/whatsapp/agente", (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  if (!tenant) {
+    res.status(400).json({ error: "Negocio no encontrado." });
+    return;
+  }
+  const pnid = String(req.body?.phone_number_id ?? "").trim();
+  const business: Business = { ...tenant.business, whatsapp_phone_number_id: pnid || undefined };
+  try {
+    saveTenantConfig(tenant.id, business, tenant.menu);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[api/whatsapp/agente] Error:", err);
+    res.status(500).json({ error: "No se pudo enlazar el numero." });
+  }
 });
 
 /** Configuracion completa de un negocio (datos + menu). */
@@ -118,6 +194,12 @@ app.put("/api/tenant", (req: Request, res: Response) => {
     costo_domicilio: Math.max(0, Number(b.costo_domicilio) || 0),
     personalidad: String(b.personalidad ?? "").trim(),
     formato_direccion: String(b.formato_direccion ?? "").trim() || undefined,
+    zona_horaria: String(b.zona_horaria ?? "").trim() || tenant.business.zona_horaria || "America/Bogota",
+    horarios: b.horarios && typeof b.horarios === "object"
+      ? Object.fromEntries(
+          ["lun", "mar", "mie", "jue", "vie", "sab", "dom"].map((d) => [d, String(b.horarios[d] ?? "").trim()])
+        )
+      : tenant.business.horarios,
     whatsapp_phone_number_id: String(b.whatsapp_phone_number_id ?? "").trim() || undefined,
   };
 
@@ -271,7 +353,48 @@ app.get("/api/conversation", (req: Request, res: Response) => {
     orders: getOrders(tenant.id).filter((o) => o.phone === phone),
     reservations: getReservations(tenant.id).filter((r) => r.phone === phone),
     lead: getLead(tenant.id, phone) ?? null,
+    handoff: isHandedOff(tenant.id, phone),
   });
+});
+
+/** Un humano responde al cliente desde la consola: envia por WhatsApp y lo guarda. */
+app.post("/api/reply", async (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  const phone = String(req.body?.phone ?? "");
+  const text = String(req.body?.text ?? "").trim();
+  if (!tenant || !phone || !text) {
+    res.status(400).json({ error: "Falta negocio, cliente o texto." });
+    return;
+  }
+  const pnid = tenant.business.whatsapp_phone_number_id;
+  if (!pnid || !whatsappConnected()) {
+    res.status(400).json({ error: "WhatsApp no esta conectado para este negocio." });
+    return;
+  }
+  try {
+    const r = await sendText(pnid, phone, text);
+    if (!r.ok) {
+      res.status(502).json({ error: r.error || "WhatsApp rechazó el envío." });
+      return;
+    }
+    addMessage(tenant.id, phone, "assistant", text); // se ve como mensaje del negocio
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[api/reply] Error:", err);
+    res.status(500).json({ error: "No se pudo enviar el mensaje." });
+  }
+});
+
+/** Toma o devuelve el control humano de una conversacion (pausa/reanuda el bot). */
+app.post("/api/handoff", (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  const phone = String(req.body?.phone ?? "");
+  if (!tenant || !phone) {
+    res.status(400).json({ error: "Falta negocio o cliente." });
+    return;
+  }
+  setHandoff(tenant.id, phone, Boolean(req.body?.on));
+  res.json({ ok: true, handoff: isHandedOff(tenant.id, phone) });
 });
 
 // Sirve fotos locales de productos (data/tenants/<id>/img/<archivo>), de forma segura.
@@ -309,7 +432,7 @@ app.get("/webhook", (req: Request, res: Response) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  if (mode === "subscribe" && token === env.whatsappVerifyToken) {
+  if (mode === "subscribe" && token === getWhatsapp().verifyToken) {
     console.log("[webhook] Verificado correctamente.");
     res.status(200).send(challenge);
   } else {
@@ -349,6 +472,13 @@ async function processWebhook(body: any): Promise<void> {
 
         if (message.type === "text") {
           const text = message.text?.body as string;
+          // Si un humano tomo el control, el bot NO responde: solo guardamos el
+          // mensaje entrante para que el asesor lo vea en la consola.
+          if (isHandedOff(tenant.id, from)) {
+            addMessage(tenant.id, from, "user", text);
+            console.log(`[msg] (${tenant.id}) ${from} [handoff, humano atiende]: ${text}`);
+            continue;
+          }
           const reply = await handleMessage(tenant, from, text);
           if (reply.text) await sendText(phoneNumberId!, from, reply.text);
           for (const img of reply.images) {
@@ -370,7 +500,7 @@ async function processWebhook(body: any): Promise<void> {
  *  WhatsApp solo acepta URLs publicas; las fotos http(s) externas pasan tal cual. */
 function absoluteUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
-  const base = env.publicBaseUrl.replace(/\/$/, "");
+  const base = (getWhatsapp().publicBaseUrl || "").replace(/\/$/, "");
   return base ? `${base}${url}` : url;
 }
 
@@ -446,5 +576,5 @@ app.listen(env.port, () => {
   console.log(`Servidor escuchando en http://localhost:${env.port}`);
   console.log(`Chat:    http://localhost:${env.port}/chat`);
   console.log(`Panel:   http://localhost:${env.port}/admin`);
-  console.log(`Webhook: http://localhost:${env.port}/webhook ${waEnabled ? "(WhatsApp activo)" : "(WhatsApp desactivado)"}`);
+  console.log(`Webhook: http://localhost:${env.port}/webhook ${whatsappConnected() ? "(WhatsApp conectado)" : "(WhatsApp sin conectar)"}`);
 });

@@ -15,8 +15,107 @@ export interface Business {
    * porque el formato cambia por pais (en Colombia hace falta la placa: #15-30).
    */
   formato_direccion?: string;
+  /** Zona horaria IANA para saber si esta abierto ahora. Por defecto America/Bogota. */
+  zona_horaria?: string;
+  /**
+   * Horario por dia de la semana. Clave: lun,mar,mie,jue,vie,sab,dom.
+   * Valor: rangos "HH:MM-HH:MM" separados por coma, o "" (cerrado ese dia).
+   * Ej: { "lun": "11:00-22:00", "dom": "" }
+   */
+  horarios?: Record<string, string>;
   /** ID del numero de WhatsApp (Meta) para enrutar mensajes a este negocio. */
   whatsapp_phone_number_id?: string;
+}
+
+const DIAS = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"] as const;
+const DIAS_LARGO = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+/** Hora de pared (dia de semana y minutos desde medianoche) en una zona horaria. */
+function horaEnZona(now: Date, tz: string): { diaIdx: number; minutos: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const diaIdx = map[get("weekday")] ?? 0;
+  let hora = parseInt(get("hour"), 10);
+  if (hora === 24) hora = 0;
+  const minutos = hora * 60 + parseInt(get("minute"), 10);
+  return { diaIdx, minutos };
+}
+
+function parseRangos(valor: string): [number, number][] {
+  return (valor || "")
+    .split(",")
+    .map((r) => r.trim())
+    .filter(Boolean)
+    .map((r) => {
+      const [a, b] = r.split("-").map((x) => x.trim());
+      const min = (h: string) => {
+        const [hh, mm] = h.split(":").map((n) => parseInt(n, 10));
+        return (hh || 0) * 60 + (mm || 0);
+      };
+      return [min(a), min(b)] as [number, number];
+    });
+}
+
+function fmtHora(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const ampm = h < 12 ? "a.m." : "p.m.";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+export interface EstadoNegocio {
+  abierto: boolean;
+  ahora: string; // "miercoles, 3:45 p.m."
+  horarioHoy: string; // "11:00 a.m. a 10:00 p.m." o "cerrado"
+  proximaApertura?: string; // "abre manana a las 11:00 a.m."
+}
+
+/** Calcula si el negocio esta abierto ahora y datos de horario para el bot. */
+export function estadoNegocio(business: Business, now: Date = new Date()): EstadoNegocio {
+  const tz = business.zona_horaria || "America/Bogota";
+  const { diaIdx, minutos } = horaEnZona(now, tz);
+  const ahora = `${DIAS_LARGO[diaIdx]}, ${fmtHora(minutos)}`;
+
+  if (!business.horarios) {
+    // Sin horario configurado: no afirmamos nada, dejamos que responda con naturalidad.
+    return { abierto: true, ahora, horarioHoy: business.horario || "" };
+  }
+
+  const rangosHoy = parseRangos(business.horarios[DIAS[diaIdx]] ?? "");
+  const abierto = rangosHoy.some(([a, b]) => minutos >= a && minutos < b);
+  const horarioHoy = rangosHoy.length
+    ? rangosHoy.map(([a, b]) => `${fmtHora(a)} a ${fmtHora(b)}`).join(" y ")
+    : "cerrado";
+
+  let proximaApertura: string | undefined;
+  if (!abierto) {
+    // Hoy mas tarde?
+    const masTarde = rangosHoy.find(([a]) => a > minutos);
+    if (masTarde) {
+      proximaApertura = `hoy a las ${fmtHora(masTarde[0])}`;
+    } else {
+      // Busca el proximo dia con horario.
+      for (let i = 1; i <= 7; i++) {
+        const d = (diaIdx + i) % 7;
+        const r = parseRangos(business.horarios[DIAS[d]] ?? "");
+        if (r.length) {
+          const cuando = i === 1 ? "manana" : `el ${DIAS_LARGO[d]}`;
+          proximaApertura = `${cuando} a las ${fmtHora(r[0][0])}`;
+          break;
+        }
+      }
+    }
+  }
+
+  return { abierto, ahora, horarioHoy, proximaApertura };
 }
 
 /** Formato de direccion por defecto (Colombia) si el negocio no define uno. */

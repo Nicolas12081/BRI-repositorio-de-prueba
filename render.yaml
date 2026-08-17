@@ -1,17 +1,21 @@
-# Configuracion para desplegar en Render (https://render.com).
-# Render lee este archivo y crea el servicio con estos ajustes.
 services:
   - type: web
-    name: chatbot-ventas
+    name: bri-chatbot
     runtime: node
     plan: free
+    # Render instala, compila (tsc -> dist) y arranca el servidor.
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
+      # Cerebro de IA. La API key se pone MANUAL en el dashboard (secreta).
       - key: LLM_PROVIDER
         value: groq
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
-      # La API key NO va aqui (es secreta). Se pone en el panel de Render.
       - key: GROQ_API_KEY
         sync: false
+      # Token que TU inventas para verificar el webhook en Meta.
+      - key: WHATSAPP_VERIFY_TOKEN
+        value: vesta-verify-123
+      # El token de acceso de WhatsApp se pega en Bri -> Ajustes despues de desplegar
+      # (o se puede poner aqui como WHATSAPP_TOKEN, sync:false, si se prefiere).

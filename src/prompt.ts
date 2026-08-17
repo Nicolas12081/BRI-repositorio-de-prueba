@@ -1,5 +1,26 @@
 import type { Business, MenuItem } from "./data";
-import { formatMoney, FORMATO_DIRECCION_DEFAULT } from "./data";
+import { formatMoney, FORMATO_DIRECCION_DEFAULT, estadoNegocio } from "./data";
+
+/**
+ * Contexto que cambia con el tiempo (fecha, hora, abierto/cerrado). Se agrega al
+ * prompt EN CADA MENSAJE, porque el prompt base se construye una sola vez y no
+ * sabria la hora. Asi el bot sabe que dia es (para reservas) y si esta abierto.
+ */
+export function contextoAhora(business: Business): string {
+  const e = estadoNegocio(business);
+  const partes = [`# Momento actual (LEE ESTO ANTES DE RESPONDER)`, `Ahora es ${e.ahora}.`];
+  if (business.horarios) {
+    if (e.abierto) {
+      partes.push(`El negocio esta ABIERTO ahora (hoy: ${e.horarioHoy}).`);
+    } else {
+      partes.push(
+        `El negocio esta CERRADO ahora mismo${e.proximaApertura ? `; abre ${e.proximaApertura}` : ""}.`,
+        `REGLA OBLIGATORIA: como estan cerrados, NO tomes pedidos ni reservas ahora ni uses crear_pedido/crear_reserva. Avisale con amabilidad que en este momento estan cerrados${e.proximaApertura ? ` y que abren ${e.proximaApertura}` : ""}, y sugierele escribirte apenas abran para dejarselo listo. Puedes contarle del menu o resolver dudas, pero sin registrar nada. Nunca digas que estan abiertos ni prometas entrega ya.`
+      );
+    }
+  }
+  return partes.join("\n");
+}
 
 /** Formatea el menu agrupado por categoria, con precio y descripcion. */
 function formatMenu(menu: MenuItem[], moneda: string): string {

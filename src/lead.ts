@@ -67,6 +67,30 @@ function buildTranscript(tenant: Tenant, phone: string): { text: string; msgCoun
 }
 
 /**
+ * Marca una conversacion como convertida (hot 100) al instante, sin gastar IA.
+ * Se llama cuando se registra un pedido o reserva: es un dato real, no una estimacion.
+ */
+export function markConverted(tenant: Tenant, phone: string): void {
+  const msgs = getMessages(tenant.id, phone);
+  const pedidos = getOrders(tenant.id).filter((o) => o.phone === phone).length;
+  const reservas = getReservations(tenant.id).filter((r) => r.phone === phone).length;
+  const que = [
+    pedidos ? `${pedidos} pedido(s)` : "",
+    reservas ? `${reservas} reserva(s)` : "",
+  ].filter(Boolean).join(" y ") || "una compra";
+  saveLead({
+    tenantId: tenant.id,
+    phone,
+    score: 100,
+    bucket: "hot",
+    reasons: [`Ya cerro: ${que}.`, "Conversion confirmada en la base de datos."],
+    signals: { interes: true, precio: true, datos: true, urgencia: true },
+    msgCount: msgs.length,
+    scoredAt: Date.now(),
+  });
+}
+
+/**
  * Califica una conversacion. Usa cache salvo que la conversacion haya cambiado
  * o se pida forzar. Devuelve undefined si no hay mensajes.
  */

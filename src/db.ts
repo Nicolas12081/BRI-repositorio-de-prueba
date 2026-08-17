@@ -66,12 +66,14 @@ interface Store {
   orders: Order[];
   reservations: Reservation[];
   leads: Lead[];
+  /** Conversaciones donde un humano tomo el control (el bot no responde). Claves "tenantId|phone". */
+  handoffs: string[];
   nextOrderId: number;
   nextReservationId: number;
 }
 
 function emptyStore(): Store {
-  return { messages: [], orders: [], reservations: [], leads: [], nextOrderId: 1, nextReservationId: 1 };
+  return { messages: [], orders: [], reservations: [], leads: [], handoffs: [], nextOrderId: 1, nextReservationId: 1 };
 }
 
 function load(): Store {
@@ -162,6 +164,20 @@ export function getMessages(tenantId: string, phone: string): (HistoryMessage & 
   return store.messages
     .filter((m) => m.tenantId === tenantId && m.phone === phone)
     .map((m) => ({ role: m.role, content: m.content, created_at: m.created_at }));
+}
+
+/** ¿Un humano tomo el control de esta conversacion? (el bot no debe responder). */
+export function isHandedOff(tenantId: string, phone: string): boolean {
+  return store.handoffs.includes(tenantId + "|" + phone);
+}
+
+/** Activa o desactiva el control humano de una conversacion. */
+export function setHandoff(tenantId: string, phone: string, on: boolean): void {
+  const key = tenantId + "|" + phone;
+  const i = store.handoffs.indexOf(key);
+  if (on && i < 0) store.handoffs.push(key);
+  if (!on && i >= 0) store.handoffs.splice(i, 1);
+  persist();
 }
 
 /** Calificacion guardada de una conversacion, si existe. */

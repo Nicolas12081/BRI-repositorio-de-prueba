@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 data/bot.json
+data/settings.json
 data/*.db
 data/*.db-journal
 *.log
@@ -9,3 +10,10 @@ data/*.db-journal
 # binarios y archivos pesados que no van al repo
 cloudflared.exe
 *.zip
+
+# export original del diseno (ya esta copiado y funcional en bri-app/)
+Aplicación de chat bot/
+# archivos de analisis / documentos que no son parte de la app
+Estrategia y analisis de chatbot.xlsx
+WATI analisis.txt
+imagenes de wati.png

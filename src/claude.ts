@@ -4,6 +4,7 @@ import { getProvider } from "./llm";
 import type { ConversationItem, ToolResult } from "./llm/types";
 import type { Tenant } from "./tenants";
 import { findMenuItem, resolveImageUrl } from "./data";
+import { contextoAhora } from "./prompt";
 
 /** Una imagen que el bot decide enviar (foto de un producto). */
 export interface BotImage {
@@ -70,10 +71,14 @@ export async function handleMessage(tenant: Tenant, phone: string, userText: str
 
   let finalText = "";
 
+  // El contexto de tiempo cambia entre mensajes, por eso se agrega aqui y no en
+  // el prompt base (que se construye una sola vez al cargar el negocio).
+  const system = `${tenant.systemPrompt}\n\n${contextoAhora(tenant.business)}`;
+
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const res = await provider.complete({
-        system: tenant.systemPrompt,
+        system,
         tools,
         messages,
         maxTokens: 1024,

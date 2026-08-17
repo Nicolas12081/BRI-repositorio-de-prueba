@@ -1,5 +1,6 @@
-import { formatMoney, findMenuItem, FORMATO_DIRECCION_DEFAULT } from "./data";
+import { formatMoney, findMenuItem, FORMATO_DIRECCION_DEFAULT, estadoNegocio } from "./data";
 import { createOrder, createReservation, getOrders, getReservations } from "./db";
+import { markConverted } from "./lead";
 import type { ToolSpec } from "./llm/types";
 import type { Tenant } from "./tenants";
 
@@ -118,6 +119,11 @@ function crearPedido(ctx: ToolContext, input: Record<string, unknown>): string {
     return "Error: el pedido no tiene productos.";
   }
 
+  const est = estadoNegocio(business);
+  if (!est.abierto && business.horarios) {
+    return `NO registres el pedido: el negocio esta CERRADO ahora${est.proximaApertura ? ` (abre ${est.proximaApertura})` : ""}. Avisale al cliente con amabilidad que estan cerrados y sugierele escribir cuando abran. No uses crear_pedido hasta que abran.`;
+  }
+
   if (direccionIncompleta(direccion)) {
     return `NO registres el pedido todavia: la direccion "${direccion}" esta incompleta y el domiciliario no podria llegar. Formato esperado: ${business.formato_direccion || FORMATO_DIRECCION_DEFAULT}. Preguntale al cliente lo que falta (la placa, o con que via cruza) de forma natural, y vuelve a intentarlo cuando la tengas.`;
   }
@@ -175,6 +181,7 @@ function crearPedido(ctx: ToolContext, input: Record<string, unknown>): string {
     total,
     comentario,
   });
+  markConverted(tenant, phone); // el cliente compro -> "Casi seguro" al instante
 
   const lineas = detalle.map(
     (d) => `- ${d.cantidad}x ${d.nombre} (${formatMoney(d.subtotal, moneda)})${d.notas ? ` [${d.notas}]` : ""}`
@@ -203,6 +210,11 @@ function crearReserva(ctx: ToolContext, input: Record<string, unknown>): string 
     return "Error: faltan datos para la reserva (se requiere cliente, fecha, hora y numero de personas).";
   }
 
+  const est = estadoNegocio(tenant.business);
+  if (!est.abierto && tenant.business.horarios) {
+    return `NO registres la reserva: el negocio esta CERRADO ahora${est.proximaApertura ? ` (abre ${est.proximaApertura})` : ""}. Avisale al cliente y sugierele escribir cuando abran.`;
+  }
+
   // Idempotencia: evita reservas duplicadas del mismo cliente en el mismo lapso.
   // No comparamos la hora exacta porque el modelo la escribe distinto ("8pm" vs "20:00").
   const duplicada = getReservations(tenant.id).find(
@@ -217,6 +229,7 @@ function crearReserva(ctx: ToolContext, input: Record<string, unknown>): string 
   }
 
   const reservaId = createReservation({ tenantId: tenant.id, phone, cliente, fecha, hora, personas, notas });
+  markConverted(tenant, phone); // reserva confirmada -> "Casi seguro" al instante
 
   return `Reserva #${reservaId} confirmada.\nA nombre de: ${cliente}\nFecha: ${fecha}\nHora: ${hora}\nPersonas: ${personas}${notas ? `\nNotas: ${notas}` : ""}`;
 }
