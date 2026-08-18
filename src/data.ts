@@ -29,6 +29,18 @@ export interface Business {
   tono?: string;
   /** Umbral (0-100) para marcar un lead como "Casi seguro". Por defecto 70. */
   umbral_hot?: number;
+  /** Estilo de respuesta: "Conversacional" (por defecto) o "Formal". */
+  estilo?: string;
+  /** Idioma: "auto" | "es" | "en". Por defecto espanol. */
+  idioma?: string;
+  /** Si el bot puede enviar fotos de productos (por defecto true). */
+  enviar_fotos?: boolean;
+  /** Ofrecer pasar con un asesor cuando no sabe algo. */
+  fallback_asesor?: boolean;
+  /** Escalar a un asesor si el cliente esta molesto/frustrado. */
+  escalar_frustrado?: boolean;
+  /** Escalar a un asesor si no logra resolver tras varios intentos. */
+  escalar_sin_respuesta?: boolean;
   /** Zona horaria IANA para saber si esta abierto ahora. Por defecto America/Bogota. */
   zona_horaria?: string;
   /**

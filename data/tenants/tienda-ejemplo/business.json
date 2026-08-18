@@ -34,5 +34,7 @@
     }
   ],
   "umbral_hot": 70,
-  "instrucciones": []
+  "instrucciones": [],
+  "idioma": "es",
+  "enviar_fotos": true
 }

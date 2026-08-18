@@ -1603,7 +1603,7 @@ class Component extends DCLogic {
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin}); } }).catch(()=>{});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns)}); } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
@@ -1657,7 +1657,7 @@ class Component extends DCLogic {
     var self=this; clearTimeout(this._agT);
     this._agT=setTimeout(function(){
       if(!self.tenantId) return;
-      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin })}).catch(function(){});
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns })}).catch(function(){});
     }, 800);
   }
   async _score(id, force){
@@ -2330,7 +2330,7 @@ Todo en español, textos breves.`;
       ci:(()=>{
         const track=(on,dis)=>`flex:none;width:44px;height:25px;border-radius:14px;position:relative;cursor:${dis?"default":"pointer"};transition:background .15s;background:${on?"#16a34a":"#cbd5e1"};${dis?"opacity:.45;":""}`;
         const knob=(on)=>`position:absolute;top:2.5px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s;left:${on?"21px":"3px"}`;
-        const tg=(key)=>({["on"+key]:()=>this.setState({["ci"+key]:!s["ci"+key]}), [key.charAt(0).toLowerCase()+key.slice(1)+"Track"]:track(s["ci"+key]), [key.charAt(0).toLowerCase()+key.slice(1)+"Knob"]:knob(s["ci"+key])});
+        const tg=(key)=>({["on"+key]:()=>this.setState({["ci"+key]:!s["ci"+key]}, ()=>this.saveAgente()), [key.charAt(0).toLowerCase()+key.slice(1)+"Track"]:track(s["ci"+key]), [key.charAt(0).toLowerCase()+key.slice(1)+"Knob"]:knob(s["ci"+key])});
         const resOff=!s.ciResAuto;
         return {
           logoCircle:"flex:none;width:86px;height:86px;border-radius:50%;border:1.5px dashed #cfd4e0;display:flex;align-items:center;justify-content:center;font-size:26px;color:#b3b9c6;overflow:hidden;"+(s.ciLogo?`background:url(${s.ciLogo}) center/cover;border-style:solid`:"background:#fafafc"),
@@ -2353,9 +2353,9 @@ Todo en español, textos breves.`;
           onBudgetVal:(e)=>this.setState({ciBudgetVal:e.target.value}),
           onSupport:()=>this.setState({view:"ayuda"}),
           sources:[["all","Todas las fuentes"],["context","Solo contexto del negocio"],["faq","Solo preguntas y respuestas"]].map(([k,label])=>({label, onClick:()=>this.setState({ciSource:k}), style:chip(s.ciSource===k)})),
-          styles:["Conversacional","Formal"].map(v=>({label:v, onClick:()=>this.setState({ciStyle:v}), style:chip(s.ciStyle===v)})),
+          styles:["Conversacional","Formal"].map(v=>({label:v, onClick:()=>this.setState({ciStyle:v}, ()=>this.saveAgente()), style:chip(s.ciStyle===v)})),
           styleHint: s.ciStyle==="Conversacional"? "Respuestas naturales tipo chat, puede dividirse en varios mensajes." : "Respuestas completas y estructuradas en un solo mensaje.",
-          langs:[["auto","Detección automática"],["es","Español"],["en","Inglés"]].map(([k,label])=>({label, onClick:()=>this.setState({ciLang:k}), style:chip(s.ciLang===k)})),
+          langs:[["auto","Detección automática"],["es","Español"],["en","Inglés"]].map(([k,label])=>({label, onClick:()=>this.setState({ciLang:k}, ()=>this.saveAgente()), style:chip(s.ciLang===k)})),
           resOff,
           resDelay:s.ciResDelay,
           onResDelay:(e)=>this.setState({ciResDelay:e.target.value}),

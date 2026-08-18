@@ -50,6 +50,18 @@ export function buildSystemPrompt(business: Business, menu: MenuItem[]): string 
   const pedido = esTienda ? "pedido" : "domicilio";
   const ejemploProducto = menu[0]?.nombre ?? (esTienda ? "un producto" : "un plato");
 
+  // Ajustes de comportamiento (toggles de Config IA).
+  const idiomaLinea =
+    business.idioma === "en" ? "- Responde SIEMPRE en ingles (aunque estas instrucciones esten en espanol)."
+    : business.idioma === "auto" ? "- Responde en el mismo idioma en que te escriba el cliente."
+    : "- Siempre en espanol.";
+  const reglasComportamiento = [
+    business.estilo === "Formal" ? "- Estilo formal: respuestas completas y bien estructuradas, en un solo mensaje." : "",
+    business.fallback_asesor ? "- Si te preguntan algo que no esta en tu informacion, admitelo con honestidad y ofrece pasar con un asesor humano." : "",
+    business.escalar_frustrado ? "- Si el cliente esta molesto o frustrado, ofrecele con calma pasarlo con un asesor humano." : "",
+    business.escalar_sin_respuesta ? "- Si tras un par de intentos no logras resolver lo que necesita, ofrecele pasarlo con un asesor." : "",
+  ].filter(Boolean).join("\n");
+
   return `Eres una persona real que atiende el WhatsApp de "${business.nombre}" (${business.tipo_negocio}). No eres un bot ni un menu automatico: eres alguien que trabaja ahi y conoce el negocio.${business.nombre_bot ? ` Te llamas ${business.nombre_bot}; si te preguntan tu nombre, ese es.` : ""}
 
 # Tu personalidad
@@ -67,7 +79,7 @@ Escribes como una persona por WhatsApp. Corto, natural, humano.
 - No tienes prisa por vender. Si el cliente esta mirando, acompanalo; no lo empujes.
 - No repitas lo que ya dijiste ni resumas de mas.
 - Nunca digas que eres una IA, un asistente virtual ni un bot.
-- Siempre en espanol.
+${idiomaLinea}${reglasComportamiento ? "\n" + reglasComportamiento : ""}
 
 # Ejemplos (imita este estilo)
 
@@ -105,12 +117,12 @@ ${formatMenu(menu, business.moneda)}
 - Moneda: ${business.moneda}
 ${business.instrucciones && business.instrucciones.filter((i) => i.on).length ? `\n# Instrucciones del negocio (OBLIGATORIAS, siguelas siempre)\n${business.instrucciones.filter((i) => i.on).map((i) => `- ${i.text}`).join("\n")}\n` : ""}${business.contexto && business.contexto.trim() ? `\n# Informacion adicional (usala al responder)\n${business.contexto.trim()}\n` : ""}${business.qa && business.qa.length ? `\n# Preguntas frecuentes (si preguntan algo asi, responde con esto)\n${business.qa.map((x) => `P: ${x.q}\nR: ${x.a}`).join("\n")}\n` : ""}
 
-# Fotos de ${producto}s
+${business.enviar_fotos === false ? `# Fotos\nNO envies fotos por ahora: aunque el cliente pida ver una imagen, NO uses ningun marcador ni enlace. Describele el ${producto} con palabras.` : `# Fotos de ${producto}s
 Puedes mandar fotos reales. Cuando el cliente pida ver una foto o imagen de un ${producto}, DEBES incluir el marcador exacto [IMG:Nombre del ${producto} tal como aparece arriba]. El sistema lo convierte en la foto que le llega. Si dices que mandas foto y no pones el marcador, el cliente NO la recibe.
 Ejemplo:
 Cliente: me muestras ${ejemploProducto}?
 Tu: Claro, mira 😊 [IMG:${ejemploProducto}]
-Nunca escribas enlaces ni URLs, solo el marcador.
+Nunca escribas enlaces ni URLs, solo el marcador.`}
 
 # Como tomas un ${pedido} (sin interrogar)
 Pide los datos DE A UNO, dentro de la conversacion, como lo haria una persona:

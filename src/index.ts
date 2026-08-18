@@ -245,6 +245,12 @@ app.put("/api/agente", (req: Request, res: Response) => {
   if (typeof req.body?.bienvenida === "string") business.bienvenida = req.body.bienvenida.trim() || undefined;
   if (typeof req.body?.tono === "string") business.tono = req.body.tono.trim() || undefined;
   if (req.body?.umbral_hot != null) business.umbral_hot = Math.max(1, Math.min(100, Number(req.body.umbral_hot) || 70));
+  if (typeof req.body?.estilo === "string") business.estilo = req.body.estilo.trim() || undefined;
+  if (typeof req.body?.idioma === "string") business.idioma = req.body.idioma.trim() || undefined;
+  if (typeof req.body?.enviar_fotos === "boolean") business.enviar_fotos = req.body.enviar_fotos;
+  if (typeof req.body?.fallback_asesor === "boolean") business.fallback_asesor = req.body.fallback_asesor;
+  if (typeof req.body?.escalar_frustrado === "boolean") business.escalar_frustrado = req.body.escalar_frustrado;
+  if (typeof req.body?.escalar_sin_respuesta === "boolean") business.escalar_sin_respuesta = req.body.escalar_sin_respuesta;
   try {
     saveTenantConfig(tenant.id, business, tenant.menu); // conserva el menu, recarga el bot
     res.json({ ok: true });
