@@ -1639,6 +1639,7 @@ class Component extends DCLogic {
       signals: { budget:!!sig.interes, authority:!!sig.precio, need:!!sig.datos, timing:!!sig.urgencia },
       time: this.relTime(c.lastAt),
       handedOff: !!d.handoff,
+      trace: d.trace||null,
       msgs: (d.messages||[]).map(m=>({ role:m.role==='user'?'user':'bot', text:m.content }))
     };
   }
@@ -2439,13 +2440,15 @@ Todo en español, textos breves.`;
       agObsTitle:(()=>{ const L2=s.leads.find(l=>l.id===s.agObsId); return L2? "Traza · "+L2.name : "Traza de ejemplo — elige una conversación"; })(),
       agObsSteps:(()=>{
         const L2=s.leads.find(l=>l.id===s.agObsId);
-        const n=L2? L2.msgs.length : 4;
         const base="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e9ebf1;padding:13px 15px;box-shadow:0 4px 12px -6px rgba(15,23,42,.14);";
         const ic=(bg,fg)=>`flex:none;width:30px;height:30px;border-radius:9px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:14px`;
+        const tr=L2&&L2.trace;
+        const lat=(tr&&tr.ms!=null)? (tr.ms<1000? tr.ms+" ms" : (tr.ms/1000).toFixed(1).replace(".",",")+" s") : "—";
+        const prov=(tr&&tr.provider)? tr.provider : "—";
         return [
-          {icon:"⌕", label:"Búsqueda en contexto", time:(180+n*22)+"ms", style:base+"border-radius:12px 12px 0 0", iconStyle:ic("#e1f2fb","#0369a1")},
-          {icon:"🛡", label:"Guardrails", time:(240+n*18)+"ms", style:base+"border-top:none", iconStyle:ic("#e8f8ee","#15803d")},
-          {icon:"⚙", label:"Razonamiento del agente", time:((900+n*160)/1000).toFixed(1).replace(".",",")+"s", style:base+"border-top:none;border-radius:0 0 12px 12px", iconStyle:ic("#f0e9fc","#6d28d9")}
+          {icon:"💬", label:"Mensajes en contexto", time:(L2? L2.msgs.length : 0)+" msgs", style:base+"border-radius:12px 12px 0 0", iconStyle:ic("#e1f2fb","#0369a1")},
+          {icon:"🧠", label:"Proveedor de IA", time:prov, style:base+"border-top:none", iconStyle:ic("#f0e9fc","#6d28d9")},
+          {icon:"⚡", label:"Última respuesta", time:lat, style:base+"border-top:none;border-radius:0 0 12px 12px", iconStyle:ic("#e8f8ee","#15803d")}
         ];
       })(),
       agModels:["auto","Claude Sonnet","Claude Haiku"].map(mo=>({label:mo==="auto"?"Elegir automáticamente":mo, onClick:()=>this.setState({agModel:mo}), style:chip(s.agModel===mo)})),

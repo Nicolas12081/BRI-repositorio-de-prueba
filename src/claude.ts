@@ -1,5 +1,5 @@
 import { tools, executeTool } from "./tools";
-import { getHistory, addMessage } from "./db";
+import { getHistory, addMessage, saveTrace } from "./db";
 import { getProvider } from "./llm";
 import type { ConversationItem, ToolResult } from "./llm/types";
 import type { Tenant } from "./tenants";
@@ -112,8 +112,10 @@ export async function handleMessage(tenant: Tenant, phone: string, userText: str
   }
 
   const reply = extractImages(tenant, finalText);
+  const ms = Date.now() - t0;
+  saveTrace(tenant.id, phone, { ms, provider: provider.name, at: Date.now() });
   const imgNote = reply.images.length ? ` [+${reply.images.length} foto(s)]` : "";
-  console.log(`[bot] (${tenant.id}) -> ${phone} (${Date.now() - t0}ms)${imgNote}: ${reply.text.slice(0, 80)}`);
+  console.log(`[bot] (${tenant.id}) -> ${phone} (${ms}ms)${imgNote}: ${reply.text.slice(0, 80)}`);
 
   // Persiste solo la conversacion visible (usuario + texto de la respuesta).
   addMessage(tenant.id, phone, "user", userText);

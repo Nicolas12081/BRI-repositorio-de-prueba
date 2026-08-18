@@ -166,6 +166,21 @@ export function getMessages(tenantId: string, phone: string): (HistoryMessage & 
     .map((m) => ({ role: m.role, content: m.content, created_at: m.created_at }));
 }
 
+/** Traza tecnica de la ultima respuesta de una conversacion (para Observabilidad). */
+export interface Trace {
+  ms: number; // cuanto tardo la respuesta
+  provider: string; // proveedor de IA usado
+  at: number; // cuando
+}
+const traces = new Map<string, Trace>(); // en memoria (datos de monitoreo, efimeros)
+
+export function saveTrace(tenantId: string, phone: string, t: Trace): void {
+  traces.set(tenantId + "|" + phone, t);
+}
+export function getTrace(tenantId: string, phone: string): Trace | undefined {
+  return traces.get(tenantId + "|" + phone);
+}
+
 /** ¿Un humano tomo el control de esta conversacion? (el bot no debe responder). */
 export function isHandedOff(tenantId: string, phone: string): boolean {
   return store.handoffs.includes(tenantId + "|" + phone);

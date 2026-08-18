@@ -3,7 +3,7 @@ import express, { Request, Response } from "express";
 import { env, whatsappEnabled } from "./env";
 import { handleMessage } from "./claude";
 import { sendText, sendImage } from "./whatsapp";
-import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff } from "./db";
+import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
 import { getTenant, resolveTenant, listTenants, saveTenantConfig } from "./tenants";
@@ -504,6 +504,7 @@ app.get("/api/conversation", (req: Request, res: Response) => {
     reservations: getReservations(tenant.id).filter((r) => r.phone === phone),
     lead: getLead(tenant.id, phone) ?? null,
     handoff: isHandedOff(tenant.id, phone),
+    trace: getTrace(tenant.id, phone) ?? null,
   });
 });
 
