@@ -2404,7 +2404,13 @@ Todo en español, textos breves.`;
         const mk=(label,value,color)=>({label, value, bar:`width:${total?Math.max(4,Math.round(value/total*100)):0}%;height:100%;background:${color};border-radius:6px`});
         return [ mk("Conversaciones",total,"#6035d2"), mk("Con respuesta",replied,"#8b5cf6"), mk("Casi seguros",hot,"#16a34a"), mk("Pasados a asesor",handed,"#fd5a07") ];
       })(),
-      agTopics:[["Precios y planes",42],["Demo del producto",27],["Soporte técnico",18],["Otros",13]].map(([label,pct])=>({label, pct, bar:`width:${pct}%;height:100%;background:#6035d2;border-radius:6px;opacity:${.45+pct/80}`})),
+      agTopics:(()=>{
+        const reales=s.leads.filter(l=>String(l.id).charAt(0)!=='_');
+        const total=reales.length||1;
+        const cnt=(k)=>reales.filter(l=>l.signals&&l.signals[k]).length;
+        return [["Interés en productos",cnt("budget")],["Preguntó precios",cnt("authority")],["Dio sus datos",cnt("need")],["Con urgencia",cnt("timing")]]
+          .map(([label,n])=>{ const pct=Math.round(n/total*100); return {label, pct, bar:`width:${pct}%;height:100%;background:#6035d2;border-radius:6px;opacity:${.45+pct/80}`}; });
+      })(),
       agObsFilter:()=>this.showToast("Demo: filtro de conversaciones"),
       agObsList:s.leads.map(l=>({
         name:l.name, meta:l.msgs.length+" mensajes · "+this.META[l.bucket].label,
