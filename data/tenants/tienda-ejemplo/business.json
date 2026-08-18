@@ -32,5 +32,6 @@
       "q": "Hacen envios a todo el pais?",
       "a": "Si, enviamos a toda Colombia por transportadora, 2 a 4 dias habiles."
     }
-  ]
+  ],
+  "umbral_hot": 70
 }

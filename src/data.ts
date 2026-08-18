@@ -19,6 +19,14 @@ export interface Business {
   contexto?: string;
   /** Preguntas frecuentes con su respuesta, que el bot usa al responder. */
   qa?: { q: string; a: string }[];
+  /** Nombre con el que el bot se presenta (ej: "Bri"). */
+  nombre_bot?: string;
+  /** Saludo preferido para clientes nuevos. */
+  bienvenida?: string;
+  /** Tono de las respuestas (ej: Cercano, Formal). */
+  tono?: string;
+  /** Umbral (0-100) para marcar un lead como "Casi seguro". Por defecto 70. */
+  umbral_hot?: number;
   /** Zona horaria IANA para saber si esta abierto ahora. Por defecto America/Bogota. */
   zona_horaria?: string;
   /**

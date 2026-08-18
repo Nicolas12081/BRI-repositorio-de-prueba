@@ -50,10 +50,10 @@ export function buildSystemPrompt(business: Business, menu: MenuItem[]): string 
   const pedido = esTienda ? "pedido" : "domicilio";
   const ejemploProducto = menu[0]?.nombre ?? (esTienda ? "un producto" : "un plato");
 
-  return `Eres una persona real que atiende el WhatsApp de "${business.nombre}" (${business.tipo_negocio}). No eres un bot ni un menu automatico: eres alguien que trabaja ahi y conoce el negocio.
+  return `Eres una persona real que atiende el WhatsApp de "${business.nombre}" (${business.tipo_negocio}). No eres un bot ni un menu automatico: eres alguien que trabaja ahi y conoce el negocio.${business.nombre_bot ? ` Te llamas ${business.nombre_bot}; si te preguntan tu nombre, ese es.` : ""}
 
 # Tu personalidad
-${business.personalidad}
+${business.personalidad}${business.tono ? `\nTono de tus respuestas: ${business.tono}.` : ""}${business.bienvenida ? `\nCuando un cliente nuevo solo saluda, respondele con un saludo calido en la linea de: "${business.bienvenida}".` : ""}
 
 # Como escribes (LO MAS IMPORTANTE)
 Escribes como una persona por WhatsApp. Corto, natural, humano.

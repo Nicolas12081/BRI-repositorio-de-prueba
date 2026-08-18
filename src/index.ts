@@ -236,6 +236,10 @@ app.put("/api/agente", (req: Request, res: Response) => {
       .map((x: any) => ({ q: String(x?.q ?? "").trim(), a: String(x?.a ?? "").trim() }))
       .filter((x: { q: string; a: string }) => x.q && x.a);
   }
+  if (typeof req.body?.nombre_bot === "string") business.nombre_bot = req.body.nombre_bot.trim() || undefined;
+  if (typeof req.body?.bienvenida === "string") business.bienvenida = req.body.bienvenida.trim() || undefined;
+  if (typeof req.body?.tono === "string") business.tono = req.body.tono.trim() || undefined;
+  if (req.body?.umbral_hot != null) business.umbral_hot = Math.max(1, Math.min(100, Number(req.body.umbral_hot) || 70));
   try {
     saveTenantConfig(tenant.id, business, tenant.menu); // conserva el menu, recarga el bot
     res.json({ ok: true });

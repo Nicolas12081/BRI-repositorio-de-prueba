@@ -18,8 +18,8 @@ import type { Tenant } from "./tenants";
 const HOT_MIN = 70;
 const WARM_MIN = 40;
 
-function bucketFor(score: number): Bucket {
-  if (score >= HOT_MIN) return "hot";
+function bucketFor(score: number, hotMin: number = HOT_MIN): Bucket {
+  if (score >= hotMin) return "hot";
   if (score >= WARM_MIN) return "warm";
   return "cold";
 }
@@ -139,11 +139,12 @@ export async function scoreConversation(
     });
     const data = parseJson(res.text);
     const score = clamp(data.score, cached?.score ?? 0);
+    const hotMin = tenant.business.umbral_hot || HOT_MIN;
     const lead: Lead = {
       tenantId: tenant.id,
       phone,
       score,
-      bucket: bucketFor(score),
+      bucket: bucketFor(score, hotMin),
       reasons: Array.isArray(data.reasons) && data.reasons.length
         ? data.reasons.slice(0, 4).map((r: unknown) => String(r))
         : cached?.reasons ?? ["Sin razones detalladas."],

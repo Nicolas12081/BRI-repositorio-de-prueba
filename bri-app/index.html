@@ -1609,7 +1609,7 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business) this.setState({cfgContext:d.business.contexto||'', qaList:Array.isArray(d.business.qa)?d.business.qa:[]}); }).catch(()=>{});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin}); } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
@@ -1663,7 +1663,7 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
     var self=this; clearTimeout(this._agT);
     this._agT=setTimeout(function(){
       if(!self.tenantId) return;
-      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList })}).catch(function(){});
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin })}).catch(function(){});
     }, 800);
   }
   async _score(id, force){
@@ -2003,14 +2003,14 @@ Todo en español, textos breves.`;
     const chip=(on)=>"white-space:nowrap;flex:none;padding:8px 16px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid "+(on?"#fd5a07;background:#fff0e7;color:#d94d00":"#e2e5ec;background:#fff;color:#64748b");
     const cfgUI={
       botName:s.cfgBotName, welcome:s.cfgWelcome, inputStyle,
-      onBotName:(e)=>this.setState({cfgBotName:e.target.value}),
-      onWelcome:(e)=>this.setState({cfgWelcome:e.target.value}),
+      onBotName:(e)=>{this.setState({cfgBotName:e.target.value}); this.saveAgente();},
+      onWelcome:(e)=>{this.setState({cfgWelcome:e.target.value}); this.saveAgente();},
       context:s.cfgContext,
       onContext:(e)=>{ this.setState({cfgContext:e.target.value}); this.saveAgente(); },
       contextStyle:inputStyle+";min-height:120px;resize:vertical;line-height:1.5",
       contextCount:(s.cfgContext||"").length+" caracteres",
-      tones:["Cercano","Profesional","Directo"].map(t=>({label:t,onClick:()=>this.setState({cfgTone:t}),style:chip(s.cfgTone===t)})),
-      ths:[60,70,80].map(v=>({label:"Score ≥ "+v,onClick:()=>this.setState({cfgHotMin:v}),style:chip(s.cfgHotMin===v)})),
+      tones:["Cercano","Profesional","Directo"].map(t=>({label:t,onClick:()=>{this.setState({cfgTone:t}); this.saveAgente();},style:chip(s.cfgTone===t)})),
+      ths:[60,70,80].map(v=>({label:"Score ≥ "+v,onClick:()=>{this.setState({cfgHotMin:v}); this.saveAgente();},style:chip(s.cfgHotMin===v)})),
       hotMin:s.cfgHotMin, hotMax:s.cfgHotMin-1,
       channels:[["WhatsApp","cfgWa","WhatsApp Business API"],["Instagram","cfgIg","Messenger / Instagram DM"]].map(([nm,k,desc])=>{
         const on=!!s[k];
