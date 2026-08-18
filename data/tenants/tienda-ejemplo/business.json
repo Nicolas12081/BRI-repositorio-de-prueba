@@ -25,5 +25,12 @@
     "sab": "00:00-23:59",
     "dom": "00:00-23:59"
   },
-  "whatsapp_phone_number_id": "1190316017508600"
+  "whatsapp_phone_number_id": "1190316017508600",
+  "contexto": "Promo de la semana: 10% de descuento pagando por Nequi. Garantia de 6 meses en todos los productos.",
+  "qa": [
+    {
+      "q": "Hacen envios a todo el pais?",
+      "a": "Si, enviamos a toda Colombia por transportadora, 2 a 4 dias habiles."
+    }
+  ]
 }

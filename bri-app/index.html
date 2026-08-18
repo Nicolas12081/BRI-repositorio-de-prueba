@@ -1606,6 +1606,11 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
         const ts = await fetch('/api/tenants').then(r=>r.json());
         this.tenantId = (linked && linked.id) || (ts[0] && ts[0].id);
       }
+      // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
+      if(this.tenantId && !this._cfgLoaded){
+        this._cfgLoaded = true;
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business) this.setState({cfgContext:d.business.contexto||'', qaList:Array.isArray(d.business.qa)?d.business.qa:[]}); }).catch(()=>{});
+      }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
       var leads = await Promise.all(convs.map(c=>this.mapLead(c)));
@@ -1651,6 +1656,14 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
   }
   async rescore(id){ return this._score(id, true); }
   async scoreOne(id){ return this._score(id, false); } // al abrir: recalifica si cambio
+  // Guarda (con retardo) el conocimiento del agente en el bot real.
+  saveAgente(){
+    var self=this; clearTimeout(this._agT);
+    this._agT=setTimeout(function(){
+      if(!self.tenantId) return;
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList })}).catch(function(){});
+    }, 800);
+  }
   async _score(id, force){
     if(String(id).charAt(0)==='_') return; // estado vacio, no hay nada que calificar
     try{
@@ -1991,7 +2004,7 @@ Todo en español, textos breves.`;
       onBotName:(e)=>this.setState({cfgBotName:e.target.value}),
       onWelcome:(e)=>this.setState({cfgWelcome:e.target.value}),
       context:s.cfgContext,
-      onContext:(e)=>this.setState({cfgContext:e.target.value}),
+      onContext:(e)=>{ this.setState({cfgContext:e.target.value}); this.saveAgente(); },
       contextStyle:inputStyle+";min-height:120px;resize:vertical;line-height:1.5",
       contextCount:(s.cfgContext||"").length+" caracteres",
       tones:["Cercano","Profesional","Directo"].map(t=>({label:t,onClick:()=>this.setState({cfgTone:t}),style:chip(s.cfgTone===t)})),
@@ -2267,9 +2280,9 @@ Todo en español, textos breves.`;
           q:s.qaQ, a:s.qaA,
           onQ:(e)=>this.setState({qaQ:e.target.value}),
           onA:(e)=>this.setState({qaA:e.target.value}),
-          onAdd:()=>{ if(s.qaQ.trim()&&s.qaA.trim()) this.setState(st=>({qaQ:"",qaA:"",qaList:[...st.qaList,{q:st.qaQ.trim(),a:st.qaA.trim()}]})); },
+          onAdd:()=>{ if(s.qaQ.trim()&&s.qaA.trim()) this.setState(st=>({qaQ:"",qaA:"",qaList:[...st.qaList,{q:st.qaQ.trim(),a:st.qaA.trim()}]}), ()=>this.saveAgente()); },
           count:s.qaList.length, empty:s.qaList.length===0,
-          items:s.qaList.map((it,i)=>({ ...it, onDelete:()=>this.setState(st=>({qaList:st.qaList.filter((x,j)=>j!==i)})) }))
+          items:s.qaList.map((it,i)=>({ ...it, onDelete:()=>this.setState(st=>({qaList:st.qaList.filter((x,j)=>j!==i)}), ()=>this.saveAgente()) }))
         };
         const web={
           draft:s.webDraft, onDraft:(e)=>this.setState({webDraft:e.target.value}),

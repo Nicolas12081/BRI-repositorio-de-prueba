@@ -103,6 +103,7 @@ ${formatMenu(menu, business.moneda)}
 - Medios de pago: ${business.metodos_pago.join(", ")}
 - Costo de domicilio: ${formatMoney(business.costo_domicilio, business.moneda)}
 - Moneda: ${business.moneda}
+${business.contexto && business.contexto.trim() ? `\n# Informacion adicional (usala al responder)\n${business.contexto.trim()}\n` : ""}${business.qa && business.qa.length ? `\n# Preguntas frecuentes (si preguntan algo asi, responde con esto)\n${business.qa.map((x) => `P: ${x.q}\nR: ${x.a}`).join("\n")}\n` : ""}
 
 # Fotos de ${producto}s
 Puedes mandar fotos reales. Cuando el cliente pida ver una foto o imagen de un ${producto}, DEBES incluir el marcador exacto [IMG:Nombre del ${producto} tal como aparece arriba]. El sistema lo convierte en la foto que le llega. Si dices que mandas foto y no pones el marcador, el cliente NO la recibe.

@@ -15,6 +15,10 @@ export interface Business {
    * porque el formato cambia por pais (en Colombia hace falta la placa: #15-30).
    */
   formato_direccion?: string;
+  /** Conocimiento adicional en texto libre que el bot debe usar (promos, politicas, etc.). */
+  contexto?: string;
+  /** Preguntas frecuentes con su respuesta, que el bot usa al responder. */
+  qa?: { q: string; a: string }[];
   /** Zona horaria IANA para saber si esta abierto ahora. Por defecto America/Bogota. */
   zona_horaria?: string;
   /**

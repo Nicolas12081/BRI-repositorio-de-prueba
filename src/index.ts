@@ -222,6 +222,29 @@ app.put("/api/tenant", (req: Request, res: Response) => {
   }
 });
 
+/** Guarda el conocimiento del agente (contexto libre + preguntas frecuentes) del negocio. */
+app.put("/api/agente", (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  if (!tenant) {
+    res.status(400).json({ error: "Negocio no encontrado." });
+    return;
+  }
+  const business: Business = { ...tenant.business };
+  if (typeof req.body?.contexto === "string") business.contexto = req.body.contexto;
+  if (Array.isArray(req.body?.qa)) {
+    business.qa = req.body.qa
+      .map((x: any) => ({ q: String(x?.q ?? "").trim(), a: String(x?.a ?? "").trim() }))
+      .filter((x: { q: string; a: string }) => x.q && x.a);
+  }
+  try {
+    saveTenantConfig(tenant.id, business, tenant.menu); // conserva el menu, recarga el bot
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[api/agente] Error:", err);
+    res.status(500).json({ error: "No se pudo guardar." });
+  }
+});
+
 /** Bandeja: conversaciones de un negocio + contadores. */
 app.get("/api/conversations", (req: Request, res: Response) => {
   const tenant = getTenant(String(req.query.tenantId ?? ""));
