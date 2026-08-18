@@ -25,6 +25,8 @@ export interface Business {
   reglas_escalamiento?: { text: string; on: boolean }[];
   /** Interruptor maestro del enrutamiento a asesor (por defecto activo). */
   escalamiento_on?: boolean;
+  /** Paginas web indexadas: su URL y el texto extraido, que el bot usa como conocimiento. */
+  paginas?: { url: string; texto: string }[];
   /** Nombre con el que el bot se presenta (ej: "Bri"). */
   nombre_bot?: string;
   /** Saludo preferido para clientes nuevos. */

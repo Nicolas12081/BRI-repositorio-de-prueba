@@ -266,6 +266,61 @@ app.put("/api/agente", (req: Request, res: Response) => {
   }
 });
 
+/** Extrae texto legible de un HTML (quita scripts, estilos y etiquetas). */
+function extraerTexto(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&#\d+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Indexa una pagina web: lee la URL, extrae su texto y lo guarda como conocimiento. */
+app.post("/api/agente/pagina", async (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  const url = String(req.body?.url ?? "").trim();
+  if (!tenant || !/^https?:\/\//i.test(url)) {
+    res.status(400).json({ error: "URL invalida (debe empezar por http:// o https://)." });
+    return;
+  }
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { "User-Agent": "Mozilla/5.0 BriBot" } });
+    if (!r.ok) {
+      res.status(400).json({ error: `No se pudo abrir la pagina (${r.status}).` });
+      return;
+    }
+    const texto = extraerTexto(await r.text()).slice(0, 2000);
+    if (texto.length < 40) {
+      res.status(400).json({ error: "La pagina no tiene texto legible (puede requerir JavaScript)." });
+      return;
+    }
+    const business: Business = { ...tenant.business };
+    const paginas = (business.paginas ?? []).filter((p) => p.url !== url);
+    paginas.push({ url, texto });
+    business.paginas = paginas.slice(-8); // limite razonable
+    saveTenantConfig(tenant.id, business, tenant.menu);
+    res.json({ ok: true, url, chars: texto.length });
+  } catch (err) {
+    console.error("[api/agente/pagina] Error:", err);
+    res.status(500).json({ error: "No se pudo leer la pagina." });
+  }
+});
+
+/** Quita una pagina indexada. */
+app.post("/api/agente/pagina/borrar", (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  const url = String(req.body?.url ?? "").trim();
+  if (!tenant) {
+    res.status(400).json({ error: "Negocio no encontrado." });
+    return;
+  }
+  const business: Business = { ...tenant.business, paginas: (tenant.business.paginas ?? []).filter((p) => p.url !== url) };
+  saveTenantConfig(tenant.id, business, tenant.menu);
+  res.json({ ok: true });
+});
+
 /** Bandeja: conversaciones de un negocio + contadores. */
 app.get("/api/conversations", (req: Request, res: Response) => {
   const tenant = getTenant(String(req.query.tenantId ?? ""));

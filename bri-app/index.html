@@ -1603,7 +1603,7 @@ class Component extends DCLogic {
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc)}); } }).catch(()=>{});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[])}); } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
@@ -1803,12 +1803,16 @@ Guía de bucket: hot = muy probable que compre (presupuesto + autoridad + necesi
     return out;
   }
 
-  addWebDomain(){
+  async addWebDomain(){
     const d=this.state.webDraft.trim();
     if(!d) return;
+    const url=/^https?:\/\//i.test(d)? d : 'https://'+d;
     const id=Date.now();
-    this.setState(s=>({webDraft:"", webDomains:[...s.webDomains,{id, domain:d, ready:false}]}));
-    setTimeout(()=>this.setState(s=>({webDomains:s.webDomains.map(x=>x.id===id?{...x,ready:true,pages:12+Math.floor(Math.random()*40)}:x)})), 3000);
+    this.setState(s=>({webDraft:"", webDomains:[...s.webDomains,{id, domain:url, ready:false}]}));
+    try{
+      const r=await fetch('/api/agente/pagina',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, url })}).then(x=>x.json());
+      this.setState(s=>({webDomains:s.webDomains.map(x=>x.id===id? (r.ok? {...x,ready:true,chars:r.chars} : {...x,ready:true,error:r.error||'No se pudo leer'}) : x)}));
+    }catch(e){ this.setState(s=>({webDomains:s.webDomains.map(x=>x.id===id?{...x,ready:true,error:'Error de conexión'}:x)})); }
   }
 
   downloadSampleCsv(){
@@ -2288,9 +2292,9 @@ Todo en español, textos breves.`;
           importStyle:"flex:none;font-size:12.5px;font-weight:700;padding:10px 16px;border-radius:10px;"+(s.webDraft.trim()?"color:#fff;background:#6035d2;cursor:pointer":"color:#a9b0c0;background:#eceef3;cursor:default"),
           count:s.webDomains.length, empty:s.webDomains.length===0,
           items:s.webDomains.map((it,i)=>({ domain:it.domain,
-            status: it.ready? it.pages+" páginas indexadas · listo" : "Explorando el sitio…",
-            dot:"flex:none;width:11px;height:11px;border-radius:50%;background:"+(it.ready?"#16a34a":"#cbd5e1"),
-            onDelete:()=>this.setState(st=>({webDomains:st.webDomains.filter((x,j)=>j!==i)})) }))
+            status: it.ready? (it.error? "⚠ "+it.error : "Indexada · "+(it.chars||0)+" caracteres de conocimiento") : "Leyendo la página…",
+            dot:"flex:none;width:11px;height:11px;border-radius:50%;background:"+(it.error?"#dc2626":it.ready?"#16a34a":"#cbd5e1"),
+            onDelete:()=>{ if(this.tenantId&&it.domain&&!it.error) fetch('/api/agente/pagina/borrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId:this.tenantId, url:it.domain})}).catch(()=>{}); this.setState(st=>({webDomains:st.webDomains.filter((x,j)=>j!==i)})); } }))
         };
         const fmt=(b)=> b>1048576? (b/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
         const tr={

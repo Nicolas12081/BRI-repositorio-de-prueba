@@ -36,5 +36,6 @@
   "umbral_hot": 70,
   "instrucciones": [],
   "idioma": "es",
-  "enviar_fotos": true
+  "enviar_fotos": true,
+  "paginas": []
 }
