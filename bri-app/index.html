@@ -1627,6 +1627,8 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
         const sel = leads.some(l=>l.id===s.selectedId) ? s.selectedId : leads[0].id;
         return { leads, selectedId: sel };
       });
+      // Datos reales para la gráfica del Panel de análisis (pedidos por día).
+      fetch('/api/metrics?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(m=>{ if(m&&m.dias) this.setState({an7:m.dias}); }).catch(()=>{});
     }catch(e){ /* silencioso: reintenta en el proximo poll */ }
   }
   async mapLead(c){
@@ -2021,10 +2023,12 @@ Todo en español, textos breves.`;
     };
 
     // ---- gráfica interactiva ----
+    // Si hay datos reales (pedidos por dia, ultimos 7), la grafica los usa.
+    const real=(s.an7&&s.an7.length)?{labels:s.an7.map(x=>x.dia), values:s.an7.map(x=>x.pedidos)}:null;
     const CHART={
-      d:{labels:["9h","10h","11h","12h","13h","14h","15h","16h","17h","18h","19h","20h"], values:[8,14,11,19,16,26,22,31,24,28,18,12]},
-      w:{labels:["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], values:[122,148,135,171,164,88,54]},
-      m:{labels:["Sem 1","Sem 2","Sem 3","Sem 4"], values:[540,612,588,701]}
+      d: real||{labels:["9h","10h","11h","12h","13h","14h","15h","16h","17h","18h","19h","20h"], values:[8,14,11,19,16,26,22,31,24,28,18,12]},
+      w: real||{labels:["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], values:[122,148,135,171,164,88,54]},
+      m: real||{labels:["Sem 1","Sem 2","Sem 3","Sem 4"], values:[540,612,588,701]}
     };
     const ch=CHART[s.range]||CHART.d;
     const mx=Math.max(...ch.values);
