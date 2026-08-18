@@ -19,6 +19,8 @@ export interface Business {
   contexto?: string;
   /** Preguntas frecuentes con su respuesta, que el bot usa al responder. */
   qa?: { q: string; a: string }[];
+  /** Instrucciones/reglas que el bot debe seguir (cada una activable). */
+  instrucciones?: { text: string; on: boolean }[];
   /** Nombre con el que el bot se presenta (ej: "Bri"). */
   nombre_bot?: string;
   /** Saludo preferido para clientes nuevos. */

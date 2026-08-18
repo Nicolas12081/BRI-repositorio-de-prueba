@@ -236,6 +236,11 @@ app.put("/api/agente", (req: Request, res: Response) => {
       .map((x: any) => ({ q: String(x?.q ?? "").trim(), a: String(x?.a ?? "").trim() }))
       .filter((x: { q: string; a: string }) => x.q && x.a);
   }
+  if (Array.isArray(req.body?.instrucciones)) {
+    business.instrucciones = req.body.instrucciones
+      .map((x: any) => ({ text: String(x?.text ?? "").trim(), on: x?.on !== false }))
+      .filter((x: { text: string }) => x.text);
+  }
   if (typeof req.body?.nombre_bot === "string") business.nombre_bot = req.body.nombre_bot.trim() || undefined;
   if (typeof req.body?.bienvenida === "string") business.bienvenida = req.body.bienvenida.trim() || undefined;
   if (typeof req.body?.tono === "string") business.tono = req.body.tono.trim() || undefined;

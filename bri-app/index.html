@@ -1551,24 +1551,18 @@ class Component extends DCLogic {
     const text=this.state.agDraft.trim();
     if(!text || this.state.agTyping) return;
     this.setState(s=>({agDraft:"", agTyping:true, agMsgs:[...s.agMsgs,{role:"user",text}]}));
-    const guides={
-      "Conservador":"Solo responde con información del contexto; si no la tienes, admítelo y ofrece un asesor.",
-      "Equilibrado":"Responde con el contexto y complementa con sentido común comercial.",
-      "Creativo":"Responde de forma persuasiva y proactiva, sugiriendo siempre un siguiente paso."
-    };
-    const system=`Eres ${this.state.cfgBotName}, agente de ventas en un ENTORNO DE PRUEBAS.
-CONTEXTO DEL NEGOCIO:
-${this.state.cfgContext}${this.buildKnowledge()}
-Guía: ${guides[this.state.agGuide]}
-Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases, texto plano sin JSON.`;
+    // Prueba el BOT REAL (menu, fotos, contexto, instrucciones), no un sandbox.
+    // Usa un telefono de prueba dedicado para no ensuciar conversaciones reales.
+    if(!this._agPhone) this._agPhone='web-probar-'+Math.random().toString(36).slice(2,7);
     try{
-      const msgs=[...this.state.agMsgs].map(m=>({role:m.role==="user"?"user":"assistant",content:m.text}));
-      const raw=await window.claude.complete({system, messages:msgs, max_tokens:300});
-      this.setState(s=>({agTyping:false, agMsgs:[...s.agMsgs,{role:"bot",text:String(raw).trim()}]}));
+      const d=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:this.tenantId, phone:this._agPhone, text })}).then(r=>r.json());
+      const extra=(d.images&&d.images.length)?'  📷 ('+d.images.map(i=>i.caption).join(', ')+')':'';
+      this.setState(s=>({agTyping:false, agMsgs:[...s.agMsgs,{role:"bot",text:(d.reply||d.error||'Sin respuesta.')+extra}]}));
     }catch(e){
       this.setState(s=>({agTyping:false, agMsgs:[...s.agMsgs,{role:"bot",text:"Perdona, tuve un problema. Intenta de nuevo."}]}));
     }
   }
+  resetProbar(){ this._agPhone=null; this.setState({agMsgs:[{role:"bot", text:"¡Hola! 👋 Soy bri en modo de pruebas. Escríbeme como si fueras un cliente."}]}); }
 
   select(id){ this.setState({selectedId:id, draft:""}); this.scoreOne(id); }
 
@@ -1609,7 +1603,7 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin}); } }).catch(()=>{});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin}); } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
@@ -1663,7 +1657,7 @@ Responde en español, tono ${this.state.cfgTone.toLowerCase()}, máximo 2 frases
     var self=this; clearTimeout(this._agT);
     this._agT=setTimeout(function(){
       if(!self.tenantId) return;
-      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin })}).catch(function(){});
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin })}).catch(function(){});
     }, 800);
   }
   async _score(id, force){
@@ -2250,7 +2244,7 @@ Todo en español, textos breves.`;
       ...(()=>{
         const track=(on)=>`flex:none;width:40px;height:23px;border-radius:13px;position:relative;cursor:pointer;transition:background .15s;background:${on?"#16a34a":"#cbd5e1"}`;
         const knob=(on)=>`position:absolute;top:2.5px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s;left:${on?"19px":"3px"}`;
-        const addIns=(text)=>this.setState(st=>({insDraft:"", insList:[...st.insList,{text,on:true}]}));
+        const addIns=(text)=>this.setState(st=>({insDraft:"", insList:[...st.insList,{text,on:true}]}), ()=>this.saveAgente());
         const ins={
           suggestions:["Pedir el tamaño del equipo antes de recomendar un plan","Usar siempre los nombres y precios exactos de los planes","Nunca prometer descuentos que no estén publicados"].map(t=>({text:t,onClick:()=>addIns(t)})),
           draft:s.insDraft, onDraft:(e)=>this.setState({insDraft:e.target.value}),
@@ -2260,12 +2254,12 @@ Todo en español, textos breves.`;
           onQuick:()=>this.setState(st=>({insList:[...st.insList,
             {text:"Tono cercano y profesional, tutea al cliente",on:true},
             {text:"Responde en máximo 2 frases y termina con una pregunta",on:true},
-            {text:"Si el cliente pide hablar con una persona, escala de inmediato",on:true}]})),
+            {text:"Si el cliente pide hablar con una persona, escala de inmediato",on:true}]}), ()=>this.saveAgente()),
           count:s.insList.length, empty:s.insList.length===0,
           items:s.insList.map((it,i)=>({ text:it.text,
             track:track(it.on), knob:knob(it.on),
-            onToggle:()=>this.setState(st=>({insList:st.insList.map((x,j)=>j===i?{...x,on:!x.on}:x)})),
-            onDelete:()=>this.setState(st=>({insList:st.insList.filter((x,j)=>j!==i)})),
+            onToggle:()=>this.setState(st=>({insList:st.insList.map((x,j)=>j===i?{...x,on:!x.on}:x)}), ()=>this.saveAgente()),
+            onDelete:()=>this.setState(st=>({insList:st.insList.filter((x,j)=>j!==i)}), ()=>this.saveAgente()),
             textStyle:"flex:1;font-size:13px;font-weight:600;color:"+(it.on?"#1f2937":"#b3b9c6") }))
         };
         const addRut=(text)=>this.setState(st=>({rutRules:[...st.rutRules,{text,on:true}]}));
