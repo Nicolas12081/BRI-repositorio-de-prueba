@@ -38,5 +38,10 @@
   "idioma": "es",
   "enviar_fotos": true,
   "paginas": [],
-  "archivos": []
+  "archivos": [],
+  "activacion": {
+    "on": false,
+    "delay_min": 120,
+    "solo_horario": false
+  }
 }

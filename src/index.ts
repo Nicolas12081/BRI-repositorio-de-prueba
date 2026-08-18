@@ -10,6 +10,7 @@ import { getTenant, resolveTenant, listTenants, saveTenantConfig } from "./tenan
 import type { Tenant } from "./tenants";
 import { getProvider } from "./llm";
 import type { Business, MenuItem } from "./data";
+import { estadoNegocio } from "./data";
 import { getWhatsapp, saveWhatsapp, whatsappConnected } from "./settings";
 import { chatPage } from "./webchat";
 import { consolePage } from "./console";
@@ -250,6 +251,14 @@ app.put("/api/agente", (req: Request, res: Response) => {
       .filter((x: { text: string }) => x.text);
   }
   if (typeof req.body?.escalamiento_on === "boolean") business.escalamiento_on = req.body.escalamiento_on;
+  if (req.body?.activacion && typeof req.body.activacion === "object") {
+    const a = req.body.activacion;
+    business.activacion = {
+      on: Boolean(a.on),
+      delay_min: Math.max(1, Number(a.delay_min) || 60),
+      solo_horario: Boolean(a.solo_horario),
+    };
+  }
   if (typeof req.body?.nombre_bot === "string") business.nombre_bot = req.body.nombre_bot.trim() || undefined;
   if (typeof req.body?.bienvenida === "string") business.bienvenida = req.body.bienvenida.trim() || undefined;
   if (typeof req.body?.tono === "string") business.tono = req.body.tono.trim() || undefined;
@@ -722,6 +731,40 @@ ${pedidos.length ? `<table><tr><th>#</th><th>Cliente</th><th>Direccion</th><th>I
 ${reservas.length ? `<table><tr><th>#</th><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Personas</th><th>Notas</th><th>Registrada</th></tr>${filasReservas}</table>` : `<p class="empty">Aun no hay reservas.</p>`}
 </body></html>`;
 }
+
+// --- Activacion: seguimiento proactivo (dentro de la ventana de 24h de WhatsApp) ---
+const seguidos = new Map<string, boolean>();
+async function tickActivacion(): Promise<void> {
+  if (!whatsappConnected()) return;
+  for (const tenant of listTenants()) {
+    const act = tenant.business.activacion;
+    const pnid = tenant.business.whatsapp_phone_number_id;
+    if (!act || !act.on || !pnid) continue;
+    if (act.solo_horario && tenant.business.horarios && !estadoNegocio(tenant.business).abierto) continue;
+    const delayMs = act.delay_min * 60000;
+    for (const c of getConversations(tenant.id)) {
+      const key = tenant.id + "|" + c.phone;
+      if (c.phone.startsWith("web-")) continue; // solo WhatsApp reales
+      const msgs = getMessages(tenant.id, c.phone);
+      const last = msgs[msgs.length - 1];
+      if (!last) continue;
+      if (last.role === "user") { seguidos.delete(key); continue; } // el cliente sigue activo
+      if (seguidos.get(key) || isHandedOff(tenant.id, c.phone)) continue;
+      const silencio = Date.now() - c.lastAt;
+      if (silencio < delayMs || silencio > 23 * 3600000) continue; // dentro del delay y de las 24h
+      const lead = getLead(tenant.id, c.phone);
+      if (!lead || lead.bucket === "cold") continue; // solo clientes interesados
+      const texto = "Hola de nuevo 😊 ¿Seguimos con lo que estabas viendo? Aqui sigo para ayudarte.";
+      const r = await sendText(pnid, c.phone, texto);
+      if (r.ok) {
+        addMessage(tenant.id, c.phone, "assistant", texto);
+        seguidos.set(key, true);
+        console.log(`[activacion] seguimiento enviado a ${c.phone}`);
+      }
+    }
+  }
+}
+setInterval(() => { tickActivacion().catch((e) => console.error("[activacion]", e)); }, 120000);
 
 app.listen(env.port, () => {
   console.log(`Servidor escuchando en http://localhost:${env.port}`);

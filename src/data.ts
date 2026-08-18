@@ -29,6 +29,8 @@ export interface Business {
   paginas?: { url: string; texto: string }[];
   /** Documentos subidos (nombre + texto extraido) que el bot usa como conocimiento. */
   archivos?: { nombre: string; texto: string }[];
+  /** Activacion: seguimiento proactivo a clientes que quedaron callados (dentro de 24h). */
+  activacion?: { on: boolean; delay_min: number; solo_horario: boolean };
   /** Nombre con el que el bot se presenta (ej: "Bri"). */
   nombre_bot?: string;
   /** Saludo preferido para clientes nuevos. */
