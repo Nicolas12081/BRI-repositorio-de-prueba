@@ -27,6 +27,8 @@ export interface Business {
   escalamiento_on?: boolean;
   /** Paginas web indexadas: su URL y el texto extraido, que el bot usa como conocimiento. */
   paginas?: { url: string; texto: string }[];
+  /** Documentos subidos (nombre + texto extraido) que el bot usa como conocimiento. */
+  archivos?: { nombre: string; texto: string }[];
   /** Nombre con el que el bot se presenta (ej: "Bri"). */
   nombre_bot?: string;
   /** Saludo preferido para clientes nuevos. */

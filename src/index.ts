@@ -17,7 +17,10 @@ import { consolePage } from "./console";
 whatsappEnabled(); // solo informa en consola al arrancar
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "12mb" })); // holgura para archivos (PDF en base64)
+
+// pdf-parse no trae tipos; se carga como modulo dinamico.
+const pdfParse: any = require("pdf-parse");
 
 // Logos e imagenes de marca de Bri.
 app.use("/assets", express.static(path.join(__dirname, "..", "assets")));
@@ -306,6 +309,54 @@ app.post("/api/agente/pagina", async (req: Request, res: Response) => {
     console.error("[api/agente/pagina] Error:", err);
     res.status(500).json({ error: "No se pudo leer la pagina." });
   }
+});
+
+/** Sube un documento (texto plano ya extraido en el navegador, o un PDF en base64). */
+app.post("/api/agente/archivo", async (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  const nombre = String(req.body?.nombre ?? "").trim();
+  if (!tenant || !nombre) {
+    res.status(400).json({ error: "Falta negocio o nombre del archivo." });
+    return;
+  }
+  let texto = "";
+  try {
+    if (typeof req.body?.pdfBase64 === "string" && req.body.pdfBase64) {
+      const buf = Buffer.from(req.body.pdfBase64, "base64");
+      const r = await new pdfParse.PDFParse({ data: buf }).getText();
+      texto = String(r.text ?? "").replace(/\s+/g, " ").trim();
+    } else if (typeof req.body?.texto === "string") {
+      texto = req.body.texto.replace(/\s+/g, " ").trim();
+    }
+  } catch (err) {
+    console.error("[api/agente/archivo] Error extrayendo:", err);
+    res.status(400).json({ error: "No se pudo leer el archivo (si es PDF escaneado/imagen, no tiene texto)." });
+    return;
+  }
+  if (texto.length < 20) {
+    res.status(400).json({ error: "El archivo no tiene texto legible." });
+    return;
+  }
+  texto = texto.slice(0, 2500);
+  const business: Business = { ...tenant.business };
+  const archivos = (business.archivos ?? []).filter((a) => a.nombre !== nombre);
+  archivos.push({ nombre, texto });
+  business.archivos = archivos.slice(-8);
+  saveTenantConfig(tenant.id, business, tenant.menu);
+  res.json({ ok: true, nombre, chars: texto.length });
+});
+
+/** Quita un documento subido. */
+app.post("/api/agente/archivo/borrar", (req: Request, res: Response) => {
+  const tenant = getTenant(String(req.body?.tenantId ?? ""));
+  const nombre = String(req.body?.nombre ?? "").trim();
+  if (!tenant) {
+    res.status(400).json({ error: "Negocio no encontrado." });
+    return;
+  }
+  const business: Business = { ...tenant.business, archivos: (tenant.business.archivos ?? []).filter((a) => a.nombre !== nombre) };
+  saveTenantConfig(tenant.id, business, tenant.menu);
+  res.json({ ok: true });
 });
 
 /** Quita una pagina indexada. */

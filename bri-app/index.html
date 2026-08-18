@@ -1603,7 +1603,7 @@ class Component extends DCLogic {
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[])}); } }).catch(()=>{});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[]), fileList:(Array.isArray(b.archivos)?b.archivos.map(a=>({id:a.nombre, name:a.nombre, ready:true, chars:(a.texto||'').length})):[])}); } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
@@ -1824,11 +1824,25 @@ Guía de bucket: hot = muy probable que compre (presupuesto + autoridad + necesi
   }
 
   onTrainFiles(e){
-    const fs=Array.from(e.target.files||[]);
-    if(!fs.length) return;
-    const items=fs.map(f=>({name:f.name, size:f.size, date:new Date().toLocaleDateString("es-ES")}));
-    this.setState(s=>({fileList:[...s.fileList,...items]}));
+    const files=Array.from(e.target.files||[]);
     e.target.value="";
+    files.forEach(f=>this.subirArchivo(f));
+  }
+  subirArchivo(f){
+    const nombre=f.name;
+    const id=Date.now()+"_"+nombre;
+    this.setState(s=>({fileList:[...s.fileList,{id, name:nombre, size:f.size, date:new Date().toLocaleDateString("es-ES"), ready:false}]}));
+    const done=(patch)=>this.setState(s=>({fileList:s.fileList.map(x=>x.id===id?{...x,ready:true,...patch}:x)}));
+    const send=(body)=>fetch('/api/agente/archivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({tenantId:this.tenantId, nombre},body))})
+      .then(r=>r.json()).then(r=>done(r.ok?{chars:r.chars}:{error:r.error||'No se pudo leer'})).catch(()=>done({error:'Error de conexión'}));
+    const r=new FileReader();
+    if(f.type==='application/pdf' || /\.pdf$/i.test(nombre)){
+      r.onload=()=>{ const b64=String(r.result).split(',')[1]||''; send({pdfBase64:b64}); };
+      r.readAsDataURL(f);
+    } else {
+      r.onload=()=>send({texto:String(r.result||'')});
+      r.readAsText(f);
+    }
   }
 
   onCiLogo(e){
@@ -2301,8 +2315,9 @@ Todo en español, textos breves.`;
           onSample:()=>this.downloadSampleCsv(),
           onFiles:(e)=>this.onTrainFiles(e),
           count:s.fileList.length, empty:s.fileList.length===0,
-          items:s.fileList.map((it,i)=>({ name:it.name, meta:fmt(it.size)+" · importado el "+it.date,
-            onDelete:()=>this.setState(st=>({fileList:st.fileList.filter((x,j)=>j!==i)})) }))
+          items:s.fileList.map((it,i)=>({ name:it.name,
+            meta: it.ready===false? "Leyendo el archivo…" : it.error? "⚠ "+it.error : ((it.chars!=null? it.chars+" caracteres de conocimiento · " : (it.size?fmt(it.size)+" · ":""))+"listo"),
+            onDelete:()=>{ if(this.tenantId&&it.name&&!it.error) fetch('/api/agente/archivo/borrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId:this.tenantId, nombre:it.name})}).catch(()=>{}); this.setState(st=>({fileList:st.fileList.filter((x,j)=>j!==i)})); } }))
         };
         return {ins,rut,qa,web,tr};
       })(),
