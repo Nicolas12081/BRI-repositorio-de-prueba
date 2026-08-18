@@ -1603,7 +1603,7 @@ class Component extends DCLogic {
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns)}); } }).catch(()=>{});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc)}); } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
       const convs = data.conversaciones || [];
@@ -1657,7 +1657,7 @@ class Component extends DCLogic {
     var self=this; clearTimeout(this._agT);
     this._agT=setTimeout(function(){
       if(!self.tenantId) return;
-      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns })}).catch(function(){});
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns, reglas_escalamiento:self.state.rutRules, escalamiento_on:self.state.rutEsc })}).catch(function(){});
     }, 800);
   }
   async _score(id, force){
@@ -2262,15 +2262,15 @@ Todo en español, textos breves.`;
             onDelete:()=>this.setState(st=>({insList:st.insList.filter((x,j)=>j!==i)}), ()=>this.saveAgente()),
             textStyle:"flex:1;font-size:13px;font-weight:600;color:"+(it.on?"#1f2937":"#b3b9c6") }))
         };
-        const addRut=(text)=>this.setState(st=>({rutRules:[...st.rutRules,{text,on:true}]}));
+        const addRut=(text)=>this.setState(st=>({rutRules:[...st.rutRules,{text,on:true}]}), ()=>this.saveAgente());
         const rut={
-          suggestions:["Enrutar solicitudes de reembolso al equipo de soporte","Enrutar preguntas sobre facturación a un asesor","Enrutar a quien pida una demo directamente a María"].map(t=>({text:t,onClick:()=>addRut(t)})),
-          onEsc:()=>this.setState({rutEsc:!s.rutEsc}), escTrack:track(s.rutEsc), escKnob:knob(s.rutEsc),
+          suggestions:["Pasar a un asesor si el cliente pide un reembolso","Pasar a un asesor las preguntas sobre facturación","Pasar a un asesor a quien esté molesto o insatisfecho"].map(t=>({text:t,onClick:()=>addRut(t)})),
+          onEsc:()=>this.setState({rutEsc:!s.rutEsc}, ()=>this.saveAgente()), escTrack:track(s.rutEsc), escKnob:knob(s.rutEsc),
           count:s.rutRules.length, empty:s.rutRules.length===0,
           items:s.rutRules.map((it,i)=>({ text:it.text,
             track:track(it.on), knob:knob(it.on),
-            onToggle:()=>this.setState(st=>({rutRules:st.rutRules.map((x,j)=>j===i?{...x,on:!x.on}:x)})),
-            onDelete:()=>this.setState(st=>({rutRules:st.rutRules.filter((x,j)=>j!==i)})),
+            onToggle:()=>this.setState(st=>({rutRules:st.rutRules.map((x,j)=>j===i?{...x,on:!x.on}:x)}), ()=>this.saveAgente()),
+            onDelete:()=>this.setState(st=>({rutRules:st.rutRules.filter((x,j)=>j!==i)}), ()=>this.saveAgente()),
             textStyle:"flex:1;font-size:13px;font-weight:600;color:"+(it.on?"#1f2937":"#b3b9c6") }))
         };
         const qa={

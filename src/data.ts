@@ -21,6 +21,10 @@ export interface Business {
   qa?: { q: string; a: string }[];
   /** Instrucciones/reglas que el bot debe seguir (cada una activable). */
   instrucciones?: { text: string; on: boolean }[];
+  /** Reglas de enrutamiento: cuando escalar la conversacion a un asesor humano. */
+  reglas_escalamiento?: { text: string; on: boolean }[];
+  /** Interruptor maestro del enrutamiento a asesor (por defecto activo). */
+  escalamiento_on?: boolean;
   /** Nombre con el que el bot se presenta (ej: "Bri"). */
   nombre_bot?: string;
   /** Saludo preferido para clientes nuevos. */

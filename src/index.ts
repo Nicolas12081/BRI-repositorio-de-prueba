@@ -241,6 +241,12 @@ app.put("/api/agente", (req: Request, res: Response) => {
       .map((x: any) => ({ text: String(x?.text ?? "").trim(), on: x?.on !== false }))
       .filter((x: { text: string }) => x.text);
   }
+  if (Array.isArray(req.body?.reglas_escalamiento)) {
+    business.reglas_escalamiento = req.body.reglas_escalamiento
+      .map((x: any) => ({ text: String(x?.text ?? "").trim(), on: x?.on !== false }))
+      .filter((x: { text: string }) => x.text);
+  }
+  if (typeof req.body?.escalamiento_on === "boolean") business.escalamiento_on = req.body.escalamiento_on;
   if (typeof req.body?.nombre_bot === "string") business.nombre_bot = req.body.nombre_bot.trim() || undefined;
   if (typeof req.body?.bienvenida === "string") business.bienvenida = req.body.bienvenida.trim() || undefined;
   if (typeof req.body?.tono === "string") business.tono = req.body.tono.trim() || undefined;

@@ -1,5 +1,5 @@
 import { formatMoney, findMenuItem, FORMATO_DIRECCION_DEFAULT, estadoNegocio } from "./data";
-import { createOrder, createReservation, getOrders, getReservations } from "./db";
+import { createOrder, createReservation, getOrders, getReservations, setHandoff } from "./db";
 import { markConverted } from "./lead";
 import type { ToolSpec } from "./llm/types";
 import type { Tenant } from "./tenants";
@@ -46,6 +46,17 @@ export const tools: ToolSpec[] = [
         comentario: { type: "string", description: "Opcional. Comentario general del pedido." },
       },
       required: ["cliente", "direccion", "items"],
+    },
+  },
+  {
+    name: "pasar_a_asesor",
+    description:
+      "Escala la conversacion a un asesor humano (deja de responder el bot). Usala cuando el cliente pida hablar con una persona/asesor, o cuando aplique una regla de escalamiento del negocio.",
+    parameters: {
+      type: "object",
+      properties: {
+        motivo: { type: "string", description: "Breve motivo del escalamiento." },
+      },
     },
   },
   {
@@ -100,6 +111,9 @@ export async function executeTool(
       return crearPedido(ctx, input);
     case "crear_reserva":
       return crearReserva(ctx, input);
+    case "pasar_a_asesor":
+      setHandoff(ctx.tenant.id, ctx.phone, true);
+      return "Listo, la conversacion quedo asignada a un asesor humano. Avisale al cliente con amabilidad que en breve lo atiende una persona, y no sigas tomando pedidos ni reservas.";
     default:
       return `Error: herramienta desconocida "${name}".`;
   }

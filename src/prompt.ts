@@ -55,6 +55,11 @@ export function buildSystemPrompt(business: Business, menu: MenuItem[]): string 
     business.idioma === "en" ? "- Responde SIEMPRE en ingles (aunque estas instrucciones esten en espanol)."
     : business.idioma === "auto" ? "- Responde en el mismo idioma en que te escriba el cliente."
     : "- Siempre en espanol.";
+  const reglasEsc = (business.reglas_escalamiento ?? []).filter((r) => r.on);
+  const escalamientoActivo = business.escalamiento_on !== false;
+  const seccionEnrutamiento = escalamientoActivo
+    ? `\n# Cuando pasar a un asesor humano\nSi el cliente pide hablar con una persona, asesor o humano, usa la herramienta pasar_a_asesor.${reglasEsc.length ? `\nTambien escala con pasar_a_asesor cuando:\n${reglasEsc.map((r) => `- ${r.text}`).join("\n")}` : ""}\nAl escalar, dile al cliente con amabilidad que un asesor lo atendera en breve.`
+    : "";
   const reglasComportamiento = [
     business.estilo === "Formal" ? "- Estilo formal: respuestas completas y bien estructuradas, en un solo mensaje." : "",
     business.fallback_asesor ? "- Si te preguntan algo que no esta en tu informacion, admitelo con honestidad y ofrece pasar con un asesor humano." : "",
@@ -115,7 +120,7 @@ ${formatMenu(menu, business.moneda)}
 - Medios de pago: ${business.metodos_pago.join(", ")}
 - Costo de domicilio: ${formatMoney(business.costo_domicilio, business.moneda)}
 - Moneda: ${business.moneda}
-${business.instrucciones && business.instrucciones.filter((i) => i.on).length ? `\n# Instrucciones del negocio (OBLIGATORIAS, siguelas siempre)\n${business.instrucciones.filter((i) => i.on).map((i) => `- ${i.text}`).join("\n")}\n` : ""}${business.contexto && business.contexto.trim() ? `\n# Informacion adicional (usala al responder)\n${business.contexto.trim()}\n` : ""}${business.qa && business.qa.length ? `\n# Preguntas frecuentes (si preguntan algo asi, responde con esto)\n${business.qa.map((x) => `P: ${x.q}\nR: ${x.a}`).join("\n")}\n` : ""}
+${business.instrucciones && business.instrucciones.filter((i) => i.on).length ? `\n# Instrucciones del negocio (OBLIGATORIAS, siguelas siempre)\n${business.instrucciones.filter((i) => i.on).map((i) => `- ${i.text}`).join("\n")}\n` : ""}${business.contexto && business.contexto.trim() ? `\n# Informacion adicional (usala al responder)\n${business.contexto.trim()}\n` : ""}${business.qa && business.qa.length ? `\n# Preguntas frecuentes (si preguntan algo asi, responde con esto)\n${business.qa.map((x) => `P: ${x.q}\nR: ${x.a}`).join("\n")}\n` : ""}${seccionEnrutamiento}
 
 ${business.enviar_fotos === false ? `# Fotos\nNO envies fotos por ahora: aunque el cliente pida ver una imagen, NO uses ningun marcador ni enlace. Describele el ${producto} con palabras.` : `# Fotos de ${producto}s
 Puedes mandar fotos reales. Cuando el cliente pida ver una foto o imagen de un ${producto}, DEBES incluir el marcador exacto [IMG:Nombre del ${producto} tal como aparece arriba]. El sistema lo convierte en la foto que le llega. Si dices que mandas foto y no pones el marcador, el cliente NO la recibe.
