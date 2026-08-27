@@ -16,6 +16,6 @@ services:
         sync: false
       # Token que TU inventas para verificar el webhook en Meta.
       - key: WHATSAPP_VERIFY_TOKEN
-        value: vesta-verify-123
+        value: bri-verify-123
       # El token de acceso de WhatsApp se pega en Bri -> Ajustes despues de desplegar
       # (o se puede poner aqui como WHATSAPP_TOKEN, sync:false, si se prefiere).
