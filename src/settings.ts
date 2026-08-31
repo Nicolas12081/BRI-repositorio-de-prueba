@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { env } from "./env";
+import { kvGet, kvSet } from "./db";
 
 /**
  * Configuracion editable en caliente (no requiere reiniciar). Guarda la conexion
@@ -46,7 +47,30 @@ function load(): Settings {
 let settings: Settings = load();
 
 function persist(): void {
-  fs.writeFileSync(file, JSON.stringify(settings, null, 2), "utf-8");
+  try {
+    fs.writeFileSync(file, JSON.stringify(settings, null, 2), "utf-8");
+  } catch {
+    // Disco efimero en Render: el respaldo real es Postgres (kvSet).
+  }
+  kvSet("settings", settings);
+}
+
+/**
+ * Carga la config de WhatsApp guardada en Postgres (si hay). Llamar al arrancar,
+ * DESPUES de initDb(). Los valores no vacios de la base pisan a los del .env; los
+ * vacios se dejan con el valor por defecto (del .env), asi una variable de
+ * entorno como WHATSAPP_TOKEN sigue funcionando aunque la base no la tenga.
+ */
+export async function initSettings(): Promise<void> {
+  const saved = (await kvGet("settings")) as Partial<Settings> | null;
+  if (!saved?.whatsapp) return;
+  const merged = { ...defaults().whatsapp };
+  for (const k of ["token", "verifyToken", "publicBaseUrl"] as const) {
+    const v = saved.whatsapp[k];
+    if (v) merged[k] = v;
+  }
+  settings = { whatsapp: merged };
+  console.log("[db] Config de WhatsApp cargada desde Postgres.");
 }
 
 /** Config actual de WhatsApp (token, verify, url publica). */

@@ -96,27 +96,49 @@ function load(): Store {
 const store: Store = load();
 
 // --- Respaldo en Postgres (opcional, via DATABASE_URL) --------------------
+// Almacen clave-valor generico: cada "cosa" (el estado del bot, la config de
+// WhatsApp, etc.) se guarda como un blob JSON en la tabla `kv`. Asi todo el
+// estado sobrevive a reinicios en Render (disco efimero) sin cambiar la logica.
 let pool: Pool | null = null;
-let saveTimer: NodeJS.Timeout | null = null;
+const saveTimers = new Map<string, NodeJS.Timeout>();
+const pending = new Map<string, unknown>();
 
-/** Guarda todo el estado en Postgres (un solo blob). En segundo plano. */
-function saveToDb(): void {
+function kvSaveNow(key: string, value: unknown): void {
   if (!pool) return;
   pool
-    .query(
-      "INSERT INTO kv(key, value) VALUES('store', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-      [JSON.stringify(store)]
-    )
-    .catch((e) => console.error("[db] error guardando en Postgres:", e instanceof Error ? e.message : e));
+    .query("INSERT INTO kv(key, value) VALUES($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", [
+      key,
+      JSON.stringify(value),
+    ])
+    .catch((e) => console.error(`[db] error guardando '${key}':`, e instanceof Error ? e.message : e));
 }
 
-/** Agrupa escrituras: evita golpear la base en cada mensaje. */
-function scheduleDbSave(): void {
-  if (!pool || saveTimer) return;
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    saveToDb();
-  }, 1000);
+/** Guarda un valor en Postgres, agrupando escrituras (debounce por clave). */
+export function kvSet(key: string, value: unknown): void {
+  if (!pool) return;
+  pending.set(key, value);
+  if (saveTimers.has(key)) return;
+  saveTimers.set(
+    key,
+    setTimeout(() => {
+      saveTimers.delete(key);
+      const v = pending.get(key);
+      pending.delete(key);
+      kvSaveNow(key, v);
+    }, 1000)
+  );
+}
+
+/** Lee un valor de Postgres (o null si no hay base o no existe la clave). */
+export async function kvGet(key: string): Promise<unknown | null> {
+  if (!pool) return null;
+  const res = await pool.query("SELECT value FROM kv WHERE key = $1", [key]);
+  return res.rows.length > 0 ? res.rows[0].value : null;
+}
+
+/** ¿Hay base de datos Postgres activa? */
+export function dbConnected(): boolean {
+  return pool !== null;
 }
 
 /**
@@ -130,17 +152,21 @@ export async function initDb(): Promise<void> {
     console.log("[db] Sin DATABASE_URL: usando archivo local (los datos NO sobreviven a reinicios en Render).");
     return;
   }
-  pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
-  await pool.query("CREATE TABLE IF NOT EXISTS kv (key text PRIMARY KEY, value jsonb)");
-  const res = await pool.query("SELECT value FROM kv WHERE key = 'store'");
-  if (res.rows.length > 0) {
-    const loaded = res.rows[0].value as Partial<Store>;
-    Object.assign(store, { ...emptyStore(), ...loaded });
-    console.log(`[db] Estado cargado desde Postgres (${store.messages.length} mensajes, ${store.leads.length} leads).`);
-  } else {
-    // Primera vez: sube lo que haya en el archivo local como punto de partida.
-    saveToDb();
-    console.log("[db] Postgres conectado (primer arranque, estado inicial subido).");
+  try {
+    pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+    await pool.query("CREATE TABLE IF NOT EXISTS kv (key text PRIMARY KEY, value jsonb)");
+    const loaded = (await kvGet("store")) as Partial<Store> | null;
+    if (loaded) {
+      Object.assign(store, { ...emptyStore(), ...loaded });
+      console.log(`[db] Estado cargado desde Postgres (${store.messages.length} mensajes, ${store.leads.length} leads).`);
+    } else {
+      kvSaveNow("store", store); // primer arranque: sube el estado inicial
+      console.log("[db] Postgres conectado (primer arranque, estado inicial subido).");
+    }
+  } catch (e) {
+    // Si la conexion falla, seguimos con el archivo local en vez de quedar rotos.
+    pool = null;
+    console.error("[db] No se pudo conectar a Postgres, se usa archivo local:", e instanceof Error ? e.message : e);
   }
 }
 
@@ -150,7 +176,7 @@ function persist(): void {
   } catch {
     // En Render el disco puede ser de solo lectura/efimero; el respaldo real es Postgres.
   }
-  scheduleDbSave();
+  kvSet("store", store);
 }
 
 export function addMessage(tenantId: string, phone: string, role: "user" | "assistant", content: string): void {

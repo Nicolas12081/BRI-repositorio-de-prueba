@@ -3,7 +3,7 @@ import express, { Request, Response } from "express";
 import { env, whatsappEnabled } from "./env";
 import { handleMessage } from "./claude";
 import { sendText, sendImage } from "./whatsapp";
-import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb } from "./db";
+import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb, dbConnected } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
 import { getTenant, resolveTenant, listTenants, saveTenantConfig } from "./tenants";
@@ -11,7 +11,7 @@ import type { Tenant } from "./tenants";
 import { getProvider } from "./llm";
 import type { Business, MenuItem } from "./data";
 import { estadoNegocio } from "./data";
-import { getWhatsapp, saveWhatsapp, whatsappConnected } from "./settings";
+import { getWhatsapp, saveWhatsapp, whatsappConnected, initSettings } from "./settings";
 import { chatPage } from "./webchat";
 import { consolePage } from "./console";
 
@@ -19,6 +19,12 @@ whatsappEnabled(); // solo informa en consola al arrancar
 
 const app = express();
 app.use(express.json({ limit: "12mb" })); // holgura para archivos (PDF en base64)
+
+// Endpoint liviano para el "pinger" (cron-job.org / UptimeRobot) que mantiene
+// despierto el servidor en Render (plan gratis se duerme a los ~15 min).
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, db: dbConnected(), whatsapp: whatsappConnected() });
+});
 
 // pdf-parse no trae tipos; se carga como modulo dinamico.
 const pdfParse: any = require("pdf-parse");
@@ -767,9 +773,11 @@ async function tickActivacion(): Promise<void> {
 setInterval(() => { tickActivacion().catch((e) => console.error("[activacion]", e)); }, 120000);
 
 // Carga el estado desde Postgres (si hay DATABASE_URL) antes de aceptar trafico,
-// para no arrancar con datos vacios y luego sobrescribir lo guardado.
+// para no arrancar con datos vacios y luego sobrescribir lo guardado. Despues
+// carga la config de WhatsApp guardada (token, url publica) por el mismo medio.
 initDb()
-  .catch((e) => console.error("[db] initDb fallo, se sigue con archivo local:", e instanceof Error ? e.message : e))
+  .then(() => initSettings())
+  .catch((e) => console.error("[db] init fallo, se sigue con archivo local:", e instanceof Error ? e.message : e))
   .finally(() => {
     app.listen(env.port, () => {
       console.log(`Servidor escuchando en http://localhost:${env.port}`);
