@@ -1,10 +1,16 @@
 import fs from "fs";
 import path from "path";
+import { Pool } from "pg";
 
 /**
- * Almacenamiento simple en archivos JSON (sin dependencias nativas).
- * Multi-tenant: cada mensaje, pedido y reserva lleva su tenantId. Suficiente para
- * una v1; se puede migrar a Postgres/SQLite sin cambiar la interfaz de este modulo.
+ * Almacenamiento del bot. El estado vive en memoria (el objeto `store`) y se
+ * respalda de dos formas:
+ *  - Siempre en un archivo JSON local (data/bot.json), util en desarrollo.
+ *  - Si hay DATABASE_URL (Postgres, ej. Neon), ademas se guarda todo el estado
+ *    como un blob en la tabla `kv`, para que NO se pierda al reiniciar el
+ *    servidor (en Render el disco es efimero). Se carga desde ahi al arrancar.
+ * La interfaz publica de este modulo es sincrona: `store` es la fuente de verdad
+ * en memoria; el guardado a Postgres es en segundo plano (debounced).
  */
 
 const dataDir = path.join(__dirname, "..", "data");
@@ -89,8 +95,62 @@ function load(): Store {
 
 const store: Store = load();
 
+// --- Respaldo en Postgres (opcional, via DATABASE_URL) --------------------
+let pool: Pool | null = null;
+let saveTimer: NodeJS.Timeout | null = null;
+
+/** Guarda todo el estado en Postgres (un solo blob). En segundo plano. */
+function saveToDb(): void {
+  if (!pool) return;
+  pool
+    .query(
+      "INSERT INTO kv(key, value) VALUES('store', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [JSON.stringify(store)]
+    )
+    .catch((e) => console.error("[db] error guardando en Postgres:", e instanceof Error ? e.message : e));
+}
+
+/** Agrupa escrituras: evita golpear la base en cada mensaje. */
+function scheduleDbSave(): void {
+  if (!pool || saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveToDb();
+  }, 1000);
+}
+
+/**
+ * Conecta a Postgres si hay DATABASE_URL y carga el estado guardado. Llamar una
+ * vez al arrancar, ANTES de app.listen. Si no hay DATABASE_URL, no hace nada
+ * (se sigue usando solo el archivo local).
+ */
+export async function initDb(): Promise<void> {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.log("[db] Sin DATABASE_URL: usando archivo local (los datos NO sobreviven a reinicios en Render).");
+    return;
+  }
+  pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+  await pool.query("CREATE TABLE IF NOT EXISTS kv (key text PRIMARY KEY, value jsonb)");
+  const res = await pool.query("SELECT value FROM kv WHERE key = 'store'");
+  if (res.rows.length > 0) {
+    const loaded = res.rows[0].value as Partial<Store>;
+    Object.assign(store, { ...emptyStore(), ...loaded });
+    console.log(`[db] Estado cargado desde Postgres (${store.messages.length} mensajes, ${store.leads.length} leads).`);
+  } else {
+    // Primera vez: sube lo que haya en el archivo local como punto de partida.
+    saveToDb();
+    console.log("[db] Postgres conectado (primer arranque, estado inicial subido).");
+  }
+}
+
 function persist(): void {
-  fs.writeFileSync(dbFile, JSON.stringify(store, null, 2), "utf-8");
+  try {
+    fs.writeFileSync(dbFile, JSON.stringify(store, null, 2), "utf-8");
+  } catch {
+    // En Render el disco puede ser de solo lectura/efimero; el respaldo real es Postgres.
+  }
+  scheduleDbSave();
 }
 
 export function addMessage(tenantId: string, phone: string, role: "user" | "assistant", content: string): void {

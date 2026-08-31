@@ -3,7 +3,7 @@ import express, { Request, Response } from "express";
 import { env, whatsappEnabled } from "./env";
 import { handleMessage } from "./claude";
 import { sendText, sendImage } from "./whatsapp";
-import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace } from "./db";
+import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
 import { getTenant, resolveTenant, listTenants, saveTenantConfig } from "./tenants";
@@ -766,9 +766,15 @@ async function tickActivacion(): Promise<void> {
 }
 setInterval(() => { tickActivacion().catch((e) => console.error("[activacion]", e)); }, 120000);
 
-app.listen(env.port, () => {
-  console.log(`Servidor escuchando en http://localhost:${env.port}`);
-  console.log(`Chat:    http://localhost:${env.port}/chat`);
-  console.log(`Panel:   http://localhost:${env.port}/admin`);
-  console.log(`Webhook: http://localhost:${env.port}/webhook ${whatsappConnected() ? "(WhatsApp conectado)" : "(WhatsApp sin conectar)"}`);
-});
+// Carga el estado desde Postgres (si hay DATABASE_URL) antes de aceptar trafico,
+// para no arrancar con datos vacios y luego sobrescribir lo guardado.
+initDb()
+  .catch((e) => console.error("[db] initDb fallo, se sigue con archivo local:", e instanceof Error ? e.message : e))
+  .finally(() => {
+    app.listen(env.port, () => {
+      console.log(`Servidor escuchando en http://localhost:${env.port}`);
+      console.log(`Chat:    http://localhost:${env.port}/chat`);
+      console.log(`Panel:   http://localhost:${env.port}/admin`);
+      console.log(`Webhook: http://localhost:${env.port}/webhook ${whatsappConnected() ? "(WhatsApp conectado)" : "(WhatsApp sin conectar)"}`);
+    });
+  });
