@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import type { Business, MenuItem } from "./data";
 import { buildSystemPrompt } from "./prompt";
+import { kvGet, kvSet } from "./db";
 
 /**
  * Un tenant = un negocio cliente del SaaS, con su propio contexto.
@@ -58,22 +59,52 @@ function rebuildIndex(): void {
 }
 rebuildIndex();
 
+// Negocios modificados desde la app (no solo desde el repo). Se respaldan en
+// Postgres para que sus cambios (catalogo, phone_number_id, etc.) sobrevivan a
+// reinicios en Render (disco efimero). Solo se guardan los que se editan en vivo;
+// los negocios que solo viven en el repo no entran aqui (el repo manda para esos).
+let dbOverrides: Record<string, { business: Business; menu: MenuItem[] }> = {};
+
 /**
- * Guarda la configuracion de un negocio en disco y lo recarga en memoria.
- * Importante: al recargar se reconstruye su system prompt, asi el bot empieza a
- * usar el menu y la personalidad nuevos de inmediato, sin reiniciar el servidor.
+ * Restaura los negocios editados en vivo desde Postgres. Llamar al arrancar,
+ * DESPUES de initDb(). Aplica esos cambios encima de lo cargado del repo.
+ */
+export async function initTenants(): Promise<void> {
+  const saved = (await kvGet("tenants")) as Record<string, { business: Business; menu: MenuItem[] }> | null;
+  if (!saved) return;
+  dbOverrides = saved;
+  for (const [id, cfg] of Object.entries(saved)) {
+    const business: Business = { ...cfg.business, id };
+    tenants.set(id, { id, business, menu: cfg.menu, systemPrompt: buildSystemPrompt(business, cfg.menu) });
+  }
+  rebuildIndex();
+  console.log(`[tenants] ${Object.keys(saved).length} negocio(s) restaurado(s) desde Postgres.`);
+}
+
+/**
+ * Guarda la configuracion de un negocio (disco + Postgres) y lo recarga en memoria.
+ * Al recargar se reconstruye su system prompt, asi el bot usa el menu y la
+ * personalidad nuevos de inmediato, sin reiniciar el servidor.
  */
 export function saveTenantConfig(id: string, business: Business, menu: MenuItem[]): Tenant {
   const dir = path.join(tenantsDir, id);
   if (!fs.existsSync(dir)) throw new Error(`No existe el negocio "${id}".`);
 
   business.id = id;
-  fs.writeFileSync(path.join(dir, "business.json"), JSON.stringify(business, null, 2), "utf-8");
-  fs.writeFileSync(path.join(dir, "menu.json"), JSON.stringify(menu, null, 2), "utf-8");
+  try {
+    fs.writeFileSync(path.join(dir, "business.json"), JSON.stringify(business, null, 2), "utf-8");
+    fs.writeFileSync(path.join(dir, "menu.json"), JSON.stringify(menu, null, 2), "utf-8");
+  } catch {
+    // Disco efimero/solo-lectura en Render: el respaldo real es Postgres (kvSet).
+  }
 
-  const tenant = loadTenant(id);
+  // Reconstruimos desde los objetos en mano (no desde disco, por si el write fallo).
+  const tenant: Tenant = { id, business, menu, systemPrompt: buildSystemPrompt(business, menu) };
   tenants.set(id, tenant);
   rebuildIndex();
+
+  dbOverrides[id] = { business, menu };
+  kvSet("tenants", dbOverrides);
   console.log(`[tenants] "${id}" actualizado (${menu.length} productos); prompt reconstruido.`);
   return tenant;
 }

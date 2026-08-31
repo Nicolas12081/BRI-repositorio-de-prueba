@@ -6,7 +6,7 @@ import { sendText, sendImage } from "./whatsapp";
 import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb, dbConnected } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
-import { getTenant, resolveTenant, listTenants, saveTenantConfig } from "./tenants";
+import { getTenant, resolveTenant, listTenants, saveTenantConfig, initTenants } from "./tenants";
 import type { Tenant } from "./tenants";
 import { getProvider } from "./llm";
 import type { Business, MenuItem } from "./data";
@@ -777,6 +777,7 @@ setInterval(() => { tickActivacion().catch((e) => console.error("[activacion]", 
 // carga la config de WhatsApp guardada (token, url publica) por el mismo medio.
 initDb()
   .then(() => initSettings())
+  .then(() => initTenants())
   .catch((e) => console.error("[db] init fallo, se sigue con archivo local:", e instanceof Error ? e.message : e))
   .finally(() => {
     app.listen(env.port, () => {
