@@ -630,6 +630,49 @@ app.get("/api/webhook-debug", (_req: Request, res: Response) => {
   });
 });
 
+// Utilidad puntual: suscribe (o consulta) la cuenta de WhatsApp (WABA) al webhook
+// de la app, usando el token guardado. Resuelve el caso "webhook verificado pero
+// no llegan mensajes". ?waba=<ID> para suscribir; sin waba solo intenta descubrir.
+app.get("/api/wa-subscribe", async (req: Request, res: Response) => {
+  const token = getWhatsapp().token;
+  if (!token) {
+    res.json({ error: "No hay token guardado en Bri." });
+    return;
+  }
+  let waba = String(req.query.waba ?? "").trim();
+  const out: any = {};
+  try {
+    // Si no dan la WABA, intentamos descubrirla desde los permisos del token.
+    if (!waba) {
+      const dbg = await fetch(
+        `https://graph.facebook.com/v21.0/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`
+      );
+      const dbgJson: any = await dbg.json();
+      out.tokenInfo = dbgJson?.data?.granular_scopes ?? dbgJson;
+      const wabaScope = (dbgJson?.data?.granular_scopes ?? []).find(
+        (s: any) => s.scope === "whatsapp_business_messaging" || s.scope === "whatsapp_business_management"
+      );
+      if (wabaScope?.target_ids?.length) waba = String(wabaScope.target_ids[0]);
+      out.wabaDescubierta = waba || null;
+    }
+    if (waba) {
+      const sub = await fetch(
+        `https://graph.facebook.com/v21.0/${waba}/subscribed_apps`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+      );
+      out.suscripcion = { status: sub.status, body: await sub.json() };
+      const list = await fetch(
+        `https://graph.facebook.com/v21.0/${waba}/subscribed_apps`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      out.appsSuscritas = await list.json();
+    }
+    res.json(out);
+  } catch (e) {
+    res.json({ error: e instanceof Error ? e.message : String(e), parcial: out });
+  }
+});
+
 async function processWebhook(body: any): Promise<void> {
   const entries = body?.entry ?? [];
   for (const entry of entries) {
