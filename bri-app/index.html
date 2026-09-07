@@ -1526,7 +1526,7 @@ class Component extends DCLogic {
   };
   SIGLABELS = { budget:"Interés", authority:"Precio", need:"Datos", timing:"Urgencia" };
 
-  initials(n){ return n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+  initials(n){ n=String(n==null?"":n).trim(); if(!n) return "?"; return n.split(/\s+/).map(w=>w[0]||"").slice(0,2).join("").toUpperCase()||"?"; }
   avatarSoft(hex){
     const M={"#0ea5e9":["#e1f2fb","#0369a1"],"#8b5cf6":["#f0e9fc","#6d28d9"],"#6366f1":["#ece9fb","#4f46e5"],"#f59e0b":["#fdf0da","#b45309"],"#94a3b8":["#edf0f4","#64748b"]};
     const [bg,fg]=M[hex]||["#ede7fb","#6035d2"];
@@ -2144,7 +2144,7 @@ Todo en español, textos breves.`;
             onSend:()=>{ if(c.estado!=="Enviada"){
               this.setState(st=>({
                 campList:st.campList.map(x=>x.id===c.id?{...x,estado:"Enviada",updated:"ahora"}:x),
-                leads: c.tplBody? st.leads.map(l=>({...l, time:"ahora", msgs:[...l.msgs,{role:"bot",text:c.tplBody.split("[nombre]").join(l.name.split(" ")[0])}]})) : st.leads
+                leads: c.tplBody? st.leads.map(l=>({...l, time:"ahora", msgs:[...l.msgs,{role:"bot",text:c.tplBody.split("[nombre]").join(String(l.name||"").split(/\s+/)[0]||"")}]})) : st.leads
               }));
               this.showToast(c.tplBody? "Campaña entregada en las "+c.contacts+" conversaciones" : "Campaña enviada a "+c.contacts+" contactos");
             } },
