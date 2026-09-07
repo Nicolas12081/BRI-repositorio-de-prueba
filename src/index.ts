@@ -609,6 +609,8 @@ app.get("/webhook", (req: Request, res: Response) => {
 // Recepcion de mensajes (Meta hace POST cuando llega un mensaje)
 // Diagnostico: guarda el ultimo webhook recibido para poder VER que manda Meta.
 let ultimoWebhook: { at: number; body: any } | null = null;
+let ultimoMensaje: any = null; // ultimo webhook de tipo mensaje entrante
+let ultimoEstado: any = null; // ultimo webhook de estado (delivered/failed + errores)
 let totalWebhooks = 0;
 
 app.post("/webhook", (req: Request, res: Response) => {
@@ -616,16 +618,29 @@ app.post("/webhook", (req: Request, res: Response) => {
   res.sendStatus(200);
   ultimoWebhook = { at: Date.now(), body: req.body };
   totalWebhooks++;
+  try {
+    const v = req.body?.entry?.[0]?.changes?.[0]?.value;
+    if (v?.messages) {
+      ultimoMensaje = { at: Date.now(), from: v.messages[0]?.from, text: v.messages[0]?.text?.body, type: v.messages[0]?.type };
+    }
+    if (v?.statuses) {
+      const st = v.statuses[0];
+      ultimoEstado = { at: Date.now(), status: st?.status, recipient: st?.recipient_id, errors: st?.errors ?? null };
+    }
+  } catch {
+    /* ignore */
+  }
   processWebhook(req.body).catch((err) =>
     console.error("[webhook] Error procesando:", err)
   );
 });
 
-// Endpoint de diagnostico: muestra el ultimo webhook que Meta entrego (o null).
+// Endpoint de diagnostico: muestra que entrego Meta (mensaje entrante y estado de envio).
 app.get("/api/webhook-debug", (_req: Request, res: Response) => {
   res.json({
     totalRecibidos: totalWebhooks,
-    ultimo: ultimoWebhook,
+    ultimoMensaje,
+    ultimoEstado,
     haceSegundos: ultimoWebhook ? Math.round((Date.now() - ultimoWebhook.at) / 1000) : null,
   });
 });
