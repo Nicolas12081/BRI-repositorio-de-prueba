@@ -1607,7 +1607,8 @@ class Component extends DCLogic {
         if(b.activacion){ var m=b.activacion.delay_min||60; var unit=(m%1440===0?'Días':'Horas'); var val=(unit==='Días'?m/1440:Math.round(m/60)); this.setState({actEnabled:!!b.activacion.on, actDelay:val, actUnit:unit, actOffice:!!b.activacion.solo_horario}); } } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
-      const convs = data.conversaciones || [];
+      // Filtramos conversaciones sin telefono (datos corruptos) para que no rompan el render.
+      const convs = (data.conversaciones || []).filter(c=>c && c.phone);
       var leads = await Promise.all(convs.map(c=>this.mapLead(c)));
       // Estado vacio: si aun no hay conversaciones, un lead placeholder evita que
       // el render intente leer .bucket de un lead inexistente.
@@ -1907,8 +1908,8 @@ Todo en español, textos breves.`;
 
     const rowBase="display:flex;align-items:center;gap:11px;padding:10px 9px;border-radius:12px;cursor:pointer;transition:background .12s;";
     const mkLead=(l)=>{
-      const m=this.META[l.bucket];
-      const last=l.msgs[l.msgs.length-1];
+      const m=this.META[l.bucket]||this.META.cold;
+      const last=l.msgs[l.msgs.length-1]||{role:"bot",text:""};
       const active = l.id===s.selectedId;
       return {
         ...l, initials:this.initials(l.name), dot:m.dot,
