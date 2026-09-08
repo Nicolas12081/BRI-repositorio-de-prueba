@@ -1656,12 +1656,40 @@ class Component extends DCLogic {
   async rescore(id){ return this._score(id, true); }
   async scoreOne(id){ return this._score(id, false); } // al abrir: recalifica si cambio
   // Guarda (con retardo) el conocimiento del agente en el bot real.
-  saveAgente(){
+  saveAgente(immediate){
     var self=this; clearTimeout(this._agT);
-    this._agT=setTimeout(function(){
-      if(!self.tenantId) return;
-      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns, reglas_escalamiento:self.state.rutRules, escalamiento_on:self.state.rutEsc, activacion:{ on:!!self.state.actEnabled, delay_min:(Number(self.state.actDelay)||1)*(self.state.actUnit==='Días'?1440:self.state.actUnit==='Horas'?60:1), solo_horario:!!self.state.actOffice } })}).catch(function(){});
-    }, 800);
+    var doSave=function(){
+      if(!self.tenantId){ self._saveIndicator('idle'); return; }
+      self._saveIndicator('saving');
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns, reglas_escalamiento:self.state.rutRules, escalamiento_on:self.state.rutEsc, activacion:{ on:!!self.state.actEnabled, delay_min:(Number(self.state.actDelay)||1)*(self.state.actUnit==='Días'?1440:self.state.actUnit==='Horas'?60:1), solo_horario:!!self.state.actOffice } })})
+        .then(function(r){ if(!r.ok) throw new Error('http'); self._saveIndicator('saved'); })
+        .catch(function(){ self._saveIndicator('error'); });
+    };
+    if(immediate) doSave(); else this._agT=setTimeout(doSave, 800);
+  }
+
+  // Indicador flotante de guardado (con boton "Guardar ahora"). Inyectado al DOM
+  // directo para no depender del framework de plantillas. Aparece cuando el usuario
+  // cambia algo de la configuracion del agente y confirma que quedo guardado.
+  _saveIndicator(state){
+    var self=this;
+    var el=document.getElementById('briSaveBar');
+    if(!el){
+      el=document.createElement('div');
+      el.id='briSaveBar';
+      el.style.cssText='position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e5ec;box-shadow:0 6px 24px rgba(15,23,42,.14);border-radius:14px;padding:9px 12px 9px 14px;font-family:inherit;font-size:13px;font-weight:600;color:#475569';
+      var txt=document.createElement('span'); txt.id='briSaveTxt';
+      var btn=document.createElement('button'); btn.id='briSaveBtn'; btn.textContent='Guardar ahora';
+      btn.style.cssText='border:none;background:#fd5a07;color:#fff;padding:8px 15px;border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer';
+      btn.onclick=function(){ self.saveAgente(true); };
+      el.appendChild(txt); el.appendChild(btn);
+      document.body.appendChild(el);
+    }
+    var txtEl=document.getElementById('briSaveTxt');
+    var map={ saving:['Guardando…','#64748b'], saved:['✓ Guardado','#16a34a'], error:['⚠ No se pudo guardar','#dc2626'], idle:['',''] };
+    var m=map[state]||map.idle;
+    txtEl.textContent=m[0]; txtEl.style.color=m[1];
+    if(state==='saved'){ clearTimeout(this._savedT); this._savedT=setTimeout(function(){ var t=document.getElementById('briSaveTxt'); if(t){ t.textContent='Cambios guardados'; t.style.color='#94a3b8'; } }, 2500); }
   }
   async _score(id, force){
     if(String(id).charAt(0)==='_') return; // estado vacio, no hay nada que calificar
