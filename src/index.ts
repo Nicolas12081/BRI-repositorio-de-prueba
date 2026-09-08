@@ -46,6 +46,44 @@ app.get("/", (_req: Request, res: Response) => {
   );
 });
 
+// Politica de privacidad publica. Meta exige una URL de politica de privacidad
+// para pasar la app de WhatsApp a modo Activo (Live) y poder responder a cualquier
+// persona (no solo a los numeros de prueba del modo Desarrollo).
+app.get("/privacidad", (_req: Request, res: Response) => {
+  res.type("html").send(`<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de privacidad — Bri</title>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#1a1a1a}h1{font-size:22px}h2{font-size:17px;margin-top:28px}small{color:#888}</style>
+</head><body>
+<h1>Política de privacidad de Bri</h1>
+<small>Última actualización: septiembre de 2026</small>
+<p>Bri es un asistente de atención al cliente por WhatsApp operado por Vesta. Esta
+política explica qué datos tratamos cuando una persona escribe a un negocio atendido por Bri.</p>
+<h2>Qué información recopilamos</h2>
+<p>Cuando escribes a un negocio a través de WhatsApp, recibimos y almacenamos: tu
+número de teléfono o identificador de WhatsApp, tu nombre de perfil de WhatsApp (si
+está disponible) y el contenido de los mensajes que envías. Esta información se usa
+únicamente para atender tu conversación, responder tus consultas y gestionar pedidos
+o reservas del negocio con el que hablas.</p>
+<h2>Cómo usamos la información</h2>
+<p>Usamos tus mensajes para responderte de forma automática y, cuando hace falta,
+para que una persona del negocio continúe la atención. No vendemos tu información ni
+la usamos para publicidad de terceros.</p>
+<h2>Con quién la compartimos</h2>
+<p>Compartimos tu conversación únicamente con el negocio al que le escribiste y con
+los proveedores tecnológicos necesarios para operar el servicio (WhatsApp/Meta como
+canal de mensajería y proveedores de inteligencia artificial para generar las
+respuestas). No compartimos tus datos con nadie más.</p>
+<h2>Conservación y eliminación</h2>
+<p>Conservamos las conversaciones el tiempo necesario para dar el servicio. Puedes
+solicitar la eliminación de tus datos escribiendo al negocio o al correo de contacto
+indicado más abajo.</p>
+<h2>Contacto</h2>
+<p>Para consultas sobre privacidad o para pedir la eliminación de tus datos, escribe
+a: vesta.pos.system@gmail.com</p>
+</body></html>`);
+});
+
 // Consola del negocio: bandeja de conversaciones + chat + datos del cliente.
 app.get("/console", (_req: Request, res: Response) => {
   res.type("html").send(consolePage());
