@@ -3,7 +3,7 @@ import express, { Request, Response } from "express";
 import { env, whatsappEnabled } from "./env";
 import { handleMessage } from "./claude";
 import { sendText, sendImage } from "./whatsapp";
-import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb, dbConnected } from "./db";
+import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb, dbConnected, setContact } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
 import { getTenant, resolveTenant, listTenants, saveTenantConfig, initTenants } from "./tenants";
@@ -749,6 +749,20 @@ async function processWebhook(body: any): Promise<void> {
         if (!from) {
           console.warn(`[webhook] Mensaje sin 'from' ni 'from_user_id'. Ignorado. id=${message.id}`);
           continue;
+        }
+
+        // Guardar nombre/@username del contacto para mostrarlo en la consola en
+        // vez del codigo BSUID. WhatsApp manda el perfil en value.contacts[].
+        if (tenant) {
+          const contact = (value?.contacts ?? []).find(
+            (c: any) => c.wa_id === from || c.user_id === from
+          ) ?? value?.contacts?.[0];
+          if (contact) {
+            setContact(tenant.id, from, {
+              name: contact.profile?.name,
+              username: contact.profile?.username,
+            });
+          }
         }
 
         if (!tenant) {

@@ -195,9 +195,10 @@ export function consolePage(): string {
         '<span style="font-size:10.5px;font-weight:700;color:#8b93a5;background:#fff;border:1px solid #e7e9f0;padding:1px 8px;border-radius:10px">' + cs.length + '</span></div>';
       html += cs.map(c => {
         const on = c.phone === phone;
+        const label = c.nombre || c.phone;
         return '<div class="inbox-row" data-p="' + encodeURIComponent(c.phone) + '" style="display:flex;gap:11px;align-items:center;padding:10px 8px;border-radius:12px;cursor:pointer;' + (on ? 'background:#eef0f5;' : '') + '">' +
-          '<div style="width:38px;height:38px;flex:none;border-radius:12px;' + m.av + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">' + iniciales(c.phone) + '</div>' +
-          '<div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(c.phone) + '</span>' + chBadge(c.phone) + '</div>' +
+          '<div style="width:38px;height:38px;flex:none;border-radius:12px;' + m.av + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">' + iniciales(label) + '</div>' +
+          '<div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:700;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(label) + '</span>' + chBadge(c.phone) + '</div>' +
           '<div style="font-size:11.5px;color:#8b93a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">' + esc(c.lastMessage || "") + '</div></div>' +
           '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none"><span style="font-size:12.5px;font-weight:800;color:' + m.dot + '">' + (c.score !== null ? c.score : "—") + '</span><span style="font-size:10px;color:#a8aebc">' + hora(c.lastAt) + '</span></div></div>';
       }).join("");
@@ -249,8 +250,10 @@ export function consolePage(): string {
     const d = await jget("/api/conversation?tenantId=" + encodeURIComponent(tenantId) + "&phone=" + encodeURIComponent(p));
     moneda = d.moneda || "COP";
     const m = META[(d.lead && d.lead.bucket) || "none"];
-    $("hAv").textContent = iniciales(p); $("hAv").style.cssText = "width:40px;height:40px;flex:none;border-radius:11px;" + m.av + ";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px";
-    $("hName").textContent = p; $("hSub").textContent = d.messages.length + " mensajes"; $("hCh").innerHTML = chBadge(p);
+    const conv = (inbox || []).find(c => c.phone === p);
+    const label = (conv && conv.nombre) || d.nombre || p;
+    $("hAv").textContent = iniciales(label); $("hAv").style.cssText = "width:40px;height:40px;flex:none;border-radius:11px;" + m.av + ";display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px";
+    $("hName").textContent = label; $("hSub").textContent = d.messages.length + " mensajes"; $("hCh").innerHTML = chBadge(p);
     $("hBadge").innerHTML = d.lead ? '<div style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:' + m.dot + ';background:#f8f9fb;border:1px solid #eef0f4;padding:5px 11px;border-radius:20px"><span style="width:7px;height:7px;border-radius:50%;background:' + m.dot + '"></span>' + m.label + ' · ' + d.lead.score + '</div>' : '';
     $("msgs").innerHTML = "";
     d.messages.forEach(mm => bubble(mm.content, mm.role === "user" ? "cli" : "bot", mm.created_at));

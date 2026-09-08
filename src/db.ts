@@ -74,12 +74,19 @@ interface Store {
   leads: Lead[];
   /** Conversaciones donde un humano tomo el control (el bot no responde). Claves "tenantId|phone". */
   handoffs: string[];
+  /**
+   * Datos del contacto para mostrar en la consola. Clave "tenantId|phone".
+   * Con el sistema de usernames de WhatsApp, muchos clientes llegan con un BSUID
+   * (ej. "CO.xxxx") en vez de numero; WhatsApp nos da su nombre de perfil y/o
+   * @username, que guardamos aqui para mostrar algo legible en vez del codigo.
+   */
+  contacts: Record<string, { name?: string; username?: string }>;
   nextOrderId: number;
   nextReservationId: number;
 }
 
 function emptyStore(): Store {
-  return { messages: [], orders: [], reservations: [], leads: [], handoffs: [], nextOrderId: 1, nextReservationId: 1 };
+  return { messages: [], orders: [], reservations: [], leads: [], handoffs: [], contacts: {}, nextOrderId: 1, nextReservationId: 1 };
 }
 
 function load(): Store {
@@ -184,6 +191,27 @@ export function addMessage(tenantId: string, phone: string, role: "user" | "assi
   persist();
 }
 
+/** Guarda/actualiza el nombre y/o @username de un contacto (solo si aportan algo). */
+export function setContact(tenantId: string, phone: string, info: { name?: string; username?: string }): void {
+  const name = info.name?.trim();
+  const username = info.username?.trim();
+  if (!name && !username) return;
+  const key = tenantId + "|" + phone;
+  const prev = store.contacts[key] ?? {};
+  const next = { name: name || prev.name, username: username || prev.username };
+  if (next.name === prev.name && next.username === prev.username) return; // sin cambios
+  store.contacts[key] = next;
+  persist();
+}
+
+/** Nombre legible del contacto: nombre de perfil, o @username, o el propio phone/BSUID. */
+export function getContactLabel(tenantId: string, phone: string): string {
+  const c = store.contacts[tenantId + "|" + phone];
+  if (c?.name) return c.name;
+  if (c?.username) return "@" + c.username;
+  return phone;
+}
+
 /** Devuelve los ultimos mensajes de la conversacion (por tenant + cliente). */
 export function getHistory(tenantId: string, phone: string, limit = 20): HistoryMessage[] {
   const forConvo = store.messages.filter((m) => m.tenantId === tenantId && m.phone === phone);
@@ -223,6 +251,8 @@ export function createReservation(reservation: {
 /** Resumen de una conversacion para la bandeja de la consola. */
 export interface ConversationSummary {
   phone: string;
+  /** Nombre legible para mostrar (perfil / @username), o el phone/BSUID si no hay. */
+  nombre: string;
   lastMessage: string;
   lastAt: number;
   count: number;
@@ -239,9 +269,10 @@ export function getConversations(tenantId: string): ConversationSummary[] {
       found.lastAt = m.created_at;
       found.count++;
     } else {
-      map.set(m.phone, { phone: m.phone, lastMessage: m.content, lastAt: m.created_at, count: 1 });
+      map.set(m.phone, { phone: m.phone, nombre: "", lastMessage: m.content, lastAt: m.created_at, count: 1 });
     }
   }
+  for (const c of map.values()) c.nombre = getContactLabel(tenantId, c.phone);
   return [...map.values()].sort((a, b) => b.lastAt - a.lastAt);
 }
 
