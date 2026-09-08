@@ -3,6 +3,18 @@ import { getWhatsapp } from "./settings";
 const GRAPH_API = "https://graph.facebook.com/v21.0";
 
 /**
+ * Con el nuevo sistema de usernames de WhatsApp (2025-2026), algunos clientes
+ * llegan identificados por un BSUID (Business-Scoped User ID), ej. "CO.1066421156100727",
+ * en vez de por su numero. Para RESPONDERLES, la Cloud API exige el campo `recipient`
+ * (el campo `to` es solo para numeros de telefono). Detectamos el formato del BSUID
+ * (dos letras + punto + digitos) y armamos el destinatario en el campo correcto.
+ */
+function buildRecipient(dest: string): Record<string, string> {
+  const esBsuid = /^[A-Za-z]{2}\.\d+$/.test(dest);
+  return esBsuid ? { recipient: dest } : { to: dest };
+}
+
+/**
  * Envia un mensaje de texto via WhatsApp Cloud API.
  * El mensaje sale DESDE el numero del negocio (phoneNumberId), para que en
  * multi-tenant cada cliente reciba la respuesta desde el numero correcto.
@@ -32,7 +44,7 @@ export async function sendText(phoneNumberId: string, to: string, text: string):
     body: JSON.stringify({
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
+      ...buildRecipient(to),
       type: "text",
       text: { body: text },
     }),
@@ -59,7 +71,7 @@ export async function sendImage(phoneNumberId: string, to: string, imageUrl: str
     body: JSON.stringify({
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
+      ...buildRecipient(to),
       type: "image",
       image: caption ? { link: imageUrl, caption } : { link: imageUrl },
     }),

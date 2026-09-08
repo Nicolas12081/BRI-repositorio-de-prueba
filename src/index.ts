@@ -621,7 +621,7 @@ app.post("/webhook", (req: Request, res: Response) => {
   try {
     const v = req.body?.entry?.[0]?.changes?.[0]?.value;
     if (v?.messages) {
-      ultimoMensaje = { at: Date.now(), from: v.messages[0]?.from, text: v.messages[0]?.text?.body, type: v.messages[0]?.type };
+      ultimoMensaje = { at: Date.now(), from: v.messages[0]?.from, fromUserId: v.messages[0]?.from_user_id, text: v.messages[0]?.text?.body, type: v.messages[0]?.type };
     }
     if (v?.statuses) {
       const st = v.statuses[0];
@@ -703,7 +703,15 @@ async function processWebhook(body: any): Promise<void> {
 
       const messages = value?.messages ?? [];
       for (const message of messages) {
-        const from = message.from as string; // numero del cliente
+        // Remitente robusto: con el nuevo sistema de usernames de WhatsApp, los
+        // clientes que activaron username llegan SIN `from` (numero) y con
+        // `from_user_id` (BSUID, ej. "CO.1066421156100727"). Usamos el que venga:
+        // sirve como clave de conversacion Y como destinatario para responderles.
+        const from = (message.from ?? message.from_user_id) as string;
+        if (!from) {
+          console.warn(`[webhook] Mensaje sin 'from' ni 'from_user_id'. Ignorado. id=${message.id}`);
+          continue;
+        }
 
         if (!tenant) {
           console.warn(`[webhook] Mensaje para phone_number_id desconocido: ${phoneNumberId} y sin DEFAULT_TENANT_ID. Ignorado.`);
