@@ -642,6 +642,7 @@ app.get("/api/webhook-debug", (_req: Request, res: Response) => {
     ultimoMensaje,
     ultimoEstado,
     haceSegundos: ultimoWebhook ? Math.round((Date.now() - ultimoWebhook.at) / 1000) : null,
+    ultimoRaw: ultimoWebhook,
   });
 });
 
