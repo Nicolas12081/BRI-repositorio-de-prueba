@@ -14,6 +14,10 @@ import { estadoNegocio } from "./data";
 import { getWhatsapp, saveWhatsapp, whatsappConnected, initSettings } from "./settings";
 import { chatPage } from "./webchat";
 import { consolePage } from "./console";
+import {
+  authGate, authEnabled, verifyLogin, createSession, destroySession, setSessionCookie, clearSessionCookie,
+  sessionFromReq, getAuth, initAuth, upsertClient, deleteClient, listClients,
+} from "./auth";
 
 whatsappEnabled(); // solo informa en consola al arrancar
 
@@ -31,6 +35,71 @@ const pdfParse: any = require("pdf-parse");
 
 // Logos e imagenes de marca de Bri.
 app.use("/assets", express.static(path.join(__dirname, "..", "assets")));
+
+// --- Autenticacion (login por cliente) -----------------------------------
+// Pagina de inicio de sesion.
+app.get("/login", (req: Request, res: Response) => {
+  if (!authEnabled()) {
+    res.type("html").send(`<p style="font-family:system-ui;max-width:520px;margin:60px auto;color:#334155;line-height:1.6">El inicio de sesión aún no está activado. El administrador debe definir la variable <b>ADMIN_PASSWORD</b> en el servidor para encenderlo. Mientras tanto, <a href="/bri/">entra a Bri aquí</a>.</p>`);
+    return;
+  }
+  if (sessionFromReq(req)) { res.redirect("/bri/"); return; }
+  res.type("html").send(loginPage());
+});
+
+app.post("/api/login", (req: Request, res: Response) => {
+  const email = String(req.body?.email ?? "");
+  const password = String(req.body?.password ?? "");
+  const info = verifyLogin(email, password);
+  if (!info) {
+    res.status(401).json({ error: "Correo o contraseña incorrectos." });
+    return;
+  }
+  const token = createSession(info);
+  setSessionCookie(res, token);
+  res.json({ ok: true, role: info.role, tenantId: info.tenantId, email: info.email });
+});
+
+app.post("/api/logout", (req: Request, res: Response) => {
+  const token = (req.headers.cookie || "").split(";").map((c) => c.trim()).find((c) => c.startsWith("bri_session="));
+  if (token) destroySession(token.slice("bri_session=".length));
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+// Quien soy: el front lo usa para saber el rol y el negocio del que inicio sesion.
+app.get("/api/me", (req: Request, res: Response) => {
+  if (!authEnabled()) { res.json({ authEnabled: false, role: "admin", tenantId: "" }); return; }
+  const info = sessionFromReq(req);
+  if (!info) { res.json({ authEnabled: true, authenticated: false }); return; }
+  res.json({ authEnabled: true, authenticated: true, role: info.role, tenantId: info.tenantId, email: info.email });
+});
+
+// EL CANDADO: de aqui en adelante todo exige sesion (salvo rutas publicas).
+// Si no hay ADMIN_PASSWORD, deja pasar todo (modo abierto, como antes).
+app.use(authGate);
+
+// --- Gestion de cuentas de cliente (solo admin) --------------------------
+app.get("/api/admin/users", (_req: Request, res: Response) => {
+  res.json({ clientes: listClients(), negocios: listTenants().map((t) => ({ id: t.id, nombre: t.business.nombre })) });
+});
+app.post("/api/admin/users", (req: Request, res: Response) => {
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const password = String(req.body?.password ?? "");
+  const tenantId = String(req.body?.tenantId ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { res.status(400).json({ error: "Correo inválido." }); return; }
+  if (password.length < 6) { res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres." }); return; }
+  if (!getTenant(tenantId)) { res.status(400).json({ error: "Negocio no encontrado." }); return; }
+  upsertClient(email, password, tenantId);
+  res.json({ ok: true });
+});
+app.post("/api/admin/users/delete", (req: Request, res: Response) => {
+  const ok = deleteClient(String(req.body?.email ?? ""));
+  res.json({ ok });
+});
+app.get("/admin/cuentas", (_req: Request, res: Response) => {
+  res.type("html").send(cuentasPage());
+});
 
 // Diseno oficial de Bri (el export del usuario) servido tal cual en /bri.
 app.use("/bri", express.static(path.join(__dirname, "..", "bri-app")));
@@ -117,10 +186,15 @@ app.post("/api/chat", async (req: Request, res: Response) => {
 
 // --- APIs de la consola ---
 
-/** Negocios disponibles (para el selector de la consola). */
-app.get("/api/tenants", (_req: Request, res: Response) => {
+/** Negocios disponibles (para el selector de la consola).
+ *  Un cliente solo ve SU negocio; el admin (o el modo abierto) los ve todos. */
+app.get("/api/tenants", (req: Request, res: Response) => {
+  const auth = getAuth(req);
+  const visibles = auth && auth.role === "client" && auth.tenantId
+    ? listTenants().filter((t) => t.id === auth.tenantId)
+    : listTenants();
   res.json(
-    listTenants().map((t) => ({
+    visibles.map((t) => ({
       id: t.id,
       nombre: t.business.nombre,
       tipo: t.business.tipo_negocio,
@@ -812,6 +886,105 @@ function fecha(ts: number): string {
   return new Date(ts).toLocaleString("es-CO");
 }
 
+/** Pagina de inicio de sesion (marca Bri). */
+function loginPage(): string {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Entrar — Bri</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:#f5f6f8;color:#1f2937;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{background:#fff;border:1px solid #e9ebf1;border-radius:18px;box-shadow:0 10px 40px rgba(15,23,42,.08);padding:34px 30px;width:100%;max-width:360px}
+  .logo{font-weight:800;font-style:italic;font-size:30px;color:#fd5a07;margin:0 0 4px}
+  .sub{color:#64748b;font-size:13.5px;margin:0 0 22px}
+  label{display:block;font-size:12px;font-weight:700;color:#475569;margin:14px 0 6px}
+  input{width:100%;border:1px solid #e2e5ec;border-radius:11px;padding:11px 13px;font-size:14px;outline:none;font-family:inherit}
+  input:focus{border-color:#fd5a07}
+  button{width:100%;margin-top:20px;border:none;background:#fd5a07;color:#fff;padding:12px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  .msg{margin-top:14px;font-size:13px;font-weight:600;min-height:18px;color:#dc2626}
+</style></head><body>
+<form class="card" id="f">
+  <p class="logo">bri</p>
+  <p class="sub">Entra para administrar tu asistente.</p>
+  <label for="email">Correo</label>
+  <input id="email" type="email" autocomplete="username" required>
+  <label for="password">Contraseña</label>
+  <input id="password" type="password" autocomplete="current-password" required>
+  <button id="btn" type="submit">Entrar</button>
+  <div class="msg" id="msg"></div>
+</form>
+<script>
+  var f=document.getElementById('f'),btn=document.getElementById('btn'),msg=document.getElementById('msg');
+  f.addEventListener('submit',async function(e){
+    e.preventDefault(); btn.disabled=true; msg.textContent='';
+    try{
+      var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});
+      var d=await r.json();
+      if(!r.ok) throw new Error(d.error||'No se pudo entrar.');
+      window.location.href = d.role==='admin' ? '/admin/cuentas' : '/bri/';
+    }catch(err){ msg.textContent=err.message; btn.disabled=false; }
+  });
+</script></body></html>`;
+}
+
+/** Panel de admin para crear/borrar cuentas de cliente (solo admin). */
+function cuentasPage(): string {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Cuentas — Bri admin</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:#f5f6f8;color:#1f2937;padding:28px}
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px} h1 .b{color:#fd5a07;font-style:italic}
+  .sub{color:#64748b;font-size:13.5px;margin:0 0 22px}
+  .card{background:#fff;border:1px solid #e9ebf1;border-radius:16px;padding:20px 22px;margin-bottom:18px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  h2{font-size:15px;margin:0 0 14px}
+  label{display:block;font-size:12px;font-weight:700;color:#475569;margin:12px 0 5px}
+  input,select{width:100%;border:1px solid #e2e5ec;border-radius:10px;padding:10px 12px;font-size:13.5px;outline:none;font-family:inherit}
+  button{border:none;background:#fd5a07;color:#fff;padding:11px 20px;border-radius:10px;font-weight:700;cursor:pointer;margin-top:16px}
+  .msg{font-size:12.5px;font-weight:600;margin-top:10px;min-height:16px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px} th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #eef0f4}
+  th{color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .del{background:#fee2e2;color:#b91c1c;padding:5px 11px;border-radius:8px;font-size:12px;font-weight:700;border:none;cursor:pointer;margin:0}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .lnk{font-size:13px;color:#fd5a07;text-decoration:none;font-weight:600}
+</style></head><body><div class="wrap">
+  <div class="top"><div><h1>Cuentas de <span class="b">clientes</span></h1><p class="sub">Crea el acceso de cada negocio. Cada cliente verá solo lo suyo.</p></div>
+  <a class="lnk" href="#" id="out">Cerrar sesión</a></div>
+  <div class="card">
+    <h2>Crear / actualizar cuenta</h2>
+    <label>Correo del cliente</label><input id="email" type="email" placeholder="cliente@correo.com">
+    <label>Contraseña (mín. 6)</label><input id="pass" type="text" placeholder="una contraseña para entregarle">
+    <label>Negocio que podrá administrar</label><select id="tenant"></select>
+    <button id="save">Guardar cuenta</button>
+    <div class="msg" id="msg"></div>
+  </div>
+  <div class="card">
+    <h2>Cuentas existentes</h2>
+    <table><thead><tr><th>Correo</th><th>Negocio</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+</div>
+<script>
+  var $=function(id){return document.getElementById(id)};
+  var negocios=[];
+  async function load(){
+    var d=await fetch('/api/admin/users').then(function(r){return r.json()});
+    negocios=d.negocios||[];
+    $('tenant').innerHTML=negocios.map(function(n){return '<option value="'+n.id+'">'+n.nombre+'</option>'}).join('');
+    var nombre=function(id){var n=negocios.find(function(x){return x.id===id});return n?n.nombre:id};
+    $('rows').innerHTML=(d.clientes||[]).map(function(c){return '<tr><td>'+c.email+'</td><td>'+nombre(c.tenantId)+'</td><td style="text-align:right"><button class="del" data-e="'+c.email+'">Borrar</button></td></tr>'}).join('')||'<tr><td colspan="3" style="color:#94a3b8;font-style:italic">Aún no hay cuentas.</td></tr>';
+    document.querySelectorAll('.del').forEach(function(b){b.onclick=async function(){await fetch('/api/admin/users/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:b.dataset.e})});load();};});
+  }
+  $('save').onclick=async function(){
+    var msg=$('msg'); msg.textContent='Guardando...'; msg.style.color='#64748b';
+    var r=await fetch('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('pass').value,tenantId:$('tenant').value})});
+    var d=await r.json();
+    if(d.ok){ msg.textContent='✓ Cuenta lista'; msg.style.color='#16a34a'; $('email').value='';$('pass').value=''; load(); }
+    else { msg.textContent=d.error||'Error'; msg.style.color='#b91c1c'; }
+  };
+  $('out').onclick=async function(e){ e.preventDefault(); await fetch('/api/logout',{method:'POST'}); window.location.href='/login'; };
+  load();
+</script></body></html>`;
+}
+
 const PAGE_STYLE = `<style>
   body { font-family: system-ui, sans-serif; margin: 24px; background: #f7f7f8; color: #1a1a1a; }
   h1 { font-size: 20px; } h2 { margin-top: 32px; font-size: 16px; }
@@ -912,6 +1085,7 @@ setInterval(() => { tickActivacion().catch((e) => console.error("[activacion]", 
 initDb()
   .then(() => initSettings())
   .then(() => initTenants())
+  .then(() => initAuth())
   .catch((e) => console.error("[db] init fallo, se sigue con archivo local:", e instanceof Error ? e.message : e))
   .finally(() => {
     app.listen(env.port, () => {
