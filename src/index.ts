@@ -371,6 +371,7 @@ app.put("/api/agente", (req: Request, res: Response) => {
       solo_horario: Boolean(a.solo_horario),
     };
   }
+  if (typeof req.body?.logo === "string") business.logo = req.body.logo || undefined;
   if (typeof req.body?.nombre_bot === "string") business.nombre_bot = req.body.nombre_bot.trim() || undefined;
   if (typeof req.body?.bienvenida === "string") business.bienvenida = req.body.bienvenida.trim() || undefined;
   if (typeof req.body?.tono === "string") business.tono = req.body.tono.trim() || undefined;

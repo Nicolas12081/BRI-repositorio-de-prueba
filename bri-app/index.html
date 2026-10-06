@@ -867,9 +867,10 @@ window.addEventListener('load', function(){
                 <div style="{{ ci.logoCircle }}">{{ ci.logoPlaceholder }}</div>
                 <div style="display:flex;flex-direction:column;gap:7px;align-items:flex-start">
                   <span style="font-size:13px;font-weight:600;color:#1f2937">Sube un logo para tu agente</span>
-                  <span style="font-size:11.5px;color:#94a3b8">Archivo de imagen, máx. 10 MB</span>
+                  <span style="font-size:11.5px;color:#94a3b8">Archivo de imagen, máx. 2 MB</span>
                   <input id="ci-logo-input" type="file" accept="image/*" onChange="{{ ci.onLogo }}" style="display:none" />
                   <label for="ci-logo-input" style="font-size:12.5px;font-weight:700;color:#fff;background:#6035d2;padding:8px 16px;border-radius:9px;cursor:pointer">Subir imagen</label>
+                  <span style="font-size:11.5px;font-weight:600;color:#dc2626">{{ ci.logoMsg }}</span>
                 </div>
               </div>
             </div>
@@ -1607,7 +1608,7 @@ class Component extends DCLogic {
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({acctName:b.nombre||this.state.acctName, cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[]), fileList:(Array.isArray(b.archivos)?b.archivos.map(a=>({id:a.nombre, name:a.nombre, ready:true, chars:(a.texto||'').length})):[])});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({acctName:b.nombre||this.state.acctName, ciLogo:b.logo||null, cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[]), fileList:(Array.isArray(b.archivos)?b.archivos.map(a=>({id:a.nombre, name:a.nombre, ready:true, chars:(a.texto||'').length})):[])});
         if(b.activacion){ var m=b.activacion.delay_min||60; var unit=(m%1440===0?'Días':'Horas'); var val=(unit==='Días'?m/1440:Math.round(m/60)); this.setState({actEnabled:!!b.activacion.on, actDelay:val, actUnit:unit, actOffice:!!b.activacion.solo_horario}); } } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
@@ -1665,7 +1666,7 @@ class Component extends DCLogic {
     var doSave=function(){
       if(!self.tenantId){ self._saveIndicator('idle'); return; }
       self._saveIndicator('saving');
-      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns, reglas_escalamiento:self.state.rutRules, escalamiento_on:self.state.rutEsc, activacion:{ on:!!self.state.actEnabled, delay_min:(Number(self.state.actDelay)||1)*(self.state.actUnit==='Días'?1440:self.state.actUnit==='Horas'?60:1), solo_horario:!!self.state.actOffice } })})
+      fetch('/api/agente',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ tenantId:self.tenantId, logo:self.state.ciLogo||'', contexto:self.state.cfgContext, qa:self.state.qaList, instrucciones:self.state.insList, nombre_bot:self.state.cfgBotName, bienvenida:self.state.cfgWelcome, tono:self.state.cfgTone, umbral_hot:self.state.cfgHotMin, estilo:self.state.ciStyle, idioma:self.state.ciLang, enviar_fotos:self.state.ciImages, fallback_asesor:self.state.ciFallback, escalar_frustrado:self.state.ciEscFrust, escalar_sin_respuesta:self.state.ciEscNoAns, reglas_escalamiento:self.state.rutRules, escalamiento_on:self.state.rutEsc, activacion:{ on:!!self.state.actEnabled, delay_min:(Number(self.state.actDelay)||1)*(self.state.actUnit==='Días'?1440:self.state.actUnit==='Horas'?60:1), solo_horario:!!self.state.actOffice } })})
         .then(function(r){ if(!r.ok) throw new Error('http'); self._saveIndicator('saved'); })
         .catch(function(){ self._saveIndicator('error'); });
     };
@@ -1883,8 +1884,9 @@ Guía de bucket: hot = muy probable que compre (presupuesto + autoridad + necesi
   onCiLogo(e){
     const f=e.target.files && e.target.files[0];
     if(!f) return;
+    if(f.size > 2*1024*1024){ this.setState({ciLogoMsg:"La imagen es muy pesada (máx 2 MB). Usa una más liviana."}); return; }
     const r=new FileReader();
-    r.onload=()=>this.setState({ciLogo:r.result});
+    r.onload=()=>this.setState({ciLogo:r.result, ciLogoMsg:""}, ()=>this.saveAgente(true));
     r.readAsDataURL(f);
   }
 
@@ -2392,6 +2394,7 @@ Todo en español, textos breves.`;
         return {
           logoCircle:"flex:none;width:86px;height:86px;border-radius:50%;border:1.5px dashed #cfd4e0;display:flex;align-items:center;justify-content:center;font-size:26px;color:#b3b9c6;overflow:hidden;"+(s.ciLogo?`background:url(${s.ciLogo}) center/cover;border-style:solid`:"background:#fafafc"),
           logoPlaceholder: s.ciLogo? "" : "🖼",
+          logoMsg: s.ciLogoMsg || "",
           onLogo:(e)=>this.onCiLogo(e),
           onGen:()=>this.ciGenerate(),
           genLabel: s.ciGenLoading? "Generando…" : "✨ Generar con IA",

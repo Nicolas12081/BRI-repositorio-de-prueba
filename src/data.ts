@@ -31,6 +31,8 @@ export interface Business {
   archivos?: { nombre: string; texto: string }[];
   /** Activacion: seguimiento proactivo a clientes que quedaron callados (dentro de 24h). */
   activacion?: { on: boolean; delay_min: number; solo_horario: boolean };
+  /** Logo del agente/negocio, como data URI (imagen en base64). Se muestra en el panel. */
+  logo?: string;
   /** Nombre con el que el bot se presenta (ej: "Bri"). */
   nombre_bot?: string;
   /** Saludo preferido para clientes nuevos. */
