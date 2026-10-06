@@ -6,7 +6,7 @@ import { sendText, sendImage } from "./whatsapp";
 import { getOrders, getReservations, getConversations, getMessages, getLead, getLeads, addMessage, isHandedOff, setHandoff, getTrace, initDb, dbConnected, setContact } from "./db";
 import { scoreConversation } from "./lead";
 import { formatMoney } from "./data";
-import { getTenant, resolveTenant, listTenants, saveTenantConfig, initTenants } from "./tenants";
+import { getTenant, resolveTenant, listTenants, saveTenantConfig, initTenants, createTenant, uniqueTenantId } from "./tenants";
 import type { Tenant } from "./tenants";
 import { getProvider } from "./llm";
 import type { Business, MenuItem } from "./data";
@@ -99,6 +99,45 @@ app.post("/api/admin/users/delete", (req: Request, res: Response) => {
 });
 app.get("/admin/cuentas", (_req: Request, res: Response) => {
   res.type("html").send(cuentasPage());
+});
+
+// Onboarding guiado: crea negocio + acceso del cliente (+ numero opcional) de una.
+app.post("/api/admin/onboard", (req: Request, res: Response) => {
+  const nombre = String(req.body?.nombre ?? "").trim();
+  const tipo: "restaurante" | "tienda" = req.body?.tipo_negocio === "restaurante" ? "restaurante" : "tienda";
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const password = String(req.body?.password ?? "");
+  const pnid = String(req.body?.phone_number_id ?? "").trim();
+  const moneda = String(req.body?.moneda ?? "COP").trim() || "COP";
+  if (!nombre) { res.status(400).json({ error: "El nombre del negocio es obligatorio." }); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { res.status(400).json({ error: "Correo del cliente inválido." }); return; }
+  if (password.length < 6) { res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres." }); return; }
+  try {
+    const id = uniqueTenantId(nombre);
+    const business: Business = {
+      id,
+      nombre,
+      tipo_negocio: tipo,
+      moneda,
+      horario: "",
+      direccion: "",
+      telefono: "",
+      metodos_pago: [],
+      costo_domicilio: 0,
+      personalidad: `Eres parte del equipo de ${nombre} y atiendes a los clientes por WhatsApp con amabilidad y cercanía.`,
+      whatsapp_phone_number_id: pnid || undefined,
+    };
+    createTenant(id, business, []);
+    upsertClient(email, password, id);
+    res.json({ ok: true, tenantId: id });
+  } catch (err) {
+    console.error("[api/admin/onboard] Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "No se pudo crear el cliente." });
+  }
+});
+
+app.get("/admin/nuevo", (_req: Request, res: Response) => {
+  res.type("html").send(onboardingPage());
 });
 
 // Diseno oficial de Bri (el export del usuario) servido tal cual en /bri.
@@ -944,8 +983,12 @@ function cuentasPage(): string {
 </style></head><body><div class="wrap">
   <div class="top"><div><h1>Cuentas de <span class="b">clientes</span></h1><p class="sub">Crea el acceso de cada negocio. Cada cliente verá solo lo suyo.</p></div>
   <a class="lnk" href="#" id="out">Cerrar sesión</a></div>
+  <a href="/admin/nuevo" style="display:block;text-decoration:none;background:linear-gradient(135deg,#fd5a07,#ff7a33);color:#fff;border-radius:16px;padding:18px 22px;margin-bottom:16px">
+    <div style="font-size:16px;font-weight:800">➕ Crear cliente nuevo (guiado)</div>
+    <div style="font-size:13px;opacity:.95;margin-top:3px">Crea el negocio, su acceso y conecta su número — todo en un solo paso.</div>
+  </a>
   <div class="card">
-    <h2>Crear / actualizar cuenta</h2>
+    <h2>Actualizar contraseña de una cuenta existente</h2>
     <label>Correo del cliente</label><input id="email" type="email" placeholder="cliente@correo.com">
     <label>Contraseña (mín. 6)</label><input id="pass" type="text" placeholder="una contraseña para entregarle">
     <label>Negocio que podrá administrar</label><select id="tenant"></select>
@@ -977,6 +1020,77 @@ function cuentasPage(): string {
   };
   $('out').onclick=async function(e){ e.preventDefault(); await fetch('/api/logout',{method:'POST'}); window.location.href='/login'; };
   load();
+</script></body></html>`;
+}
+
+/** Asistente guiado para dar de alta un cliente nuevo (negocio + acceso + numero). */
+function onboardingPage(): string {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Nuevo cliente — Bri admin</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:#f5f6f8;color:#1f2937;padding:28px}
+  .wrap{max-width:560px;margin:0 auto}
+  a.back{font-size:13px;color:#fd5a07;text-decoration:none;font-weight:600}
+  h1{font-size:23px;margin:10px 0 4px} h1 .b{color:#fd5a07;font-style:italic}
+  .sub{color:#64748b;font-size:13.5px;margin:0 0 20px}
+  .card{background:#fff;border:1px solid #e9ebf1;border-radius:16px;padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  .step{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .num{width:26px;height:26px;border-radius:50%;background:#fff0e7;color:#d94d00;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none}
+  .step h2{font-size:15px;margin:0}
+  label{display:block;font-size:12px;font-weight:700;color:#475569;margin:12px 0 5px}
+  input,select{width:100%;border:1px solid #e2e5ec;border-radius:10px;padding:10px 12px;font-size:13.5px;outline:none;font-family:inherit}
+  input:focus,select:focus{border-color:#fd5a07}
+  .hint{font-size:11.5px;color:#94a3b8;margin-top:5px}
+  .opt{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em}
+  button{width:100%;border:none;background:#fd5a07;color:#fff;padding:13px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px}
+  button:disabled{opacity:.6;cursor:default}
+  .msg{font-size:13px;font-weight:600;margin-top:12px;min-height:18px}
+  .ok{background:#ecfdf3;border:1px solid #bbf7d0;color:#15803d;border-radius:12px;padding:16px;margin-top:8px}
+  .ok a{color:#fd5a07;font-weight:700}
+</style></head><body><div class="wrap">
+  <a class="back" href="/admin/cuentas">← Volver a cuentas</a>
+  <h1>Crear <span class="b">cliente nuevo</span></h1>
+  <p class="sub">En un solo paso dejas listo el negocio, el acceso del cliente y (si quieres) su número.</p>
+  <div id="form">
+    <div class="card">
+      <div class="step"><span class="num">1</span><h2>El negocio</h2></div>
+      <label>Nombre del negocio</label><input id="nombre" placeholder="Ej: Pastelería Sandra">
+      <label>Tipo</label>
+      <select id="tipo"><option value="tienda">Tienda / Comercio</option><option value="restaurante">Restaurante / Comida</option></select>
+      <label>Moneda</label><input id="moneda" value="COP">
+    </div>
+    <div class="card">
+      <div class="step"><span class="num">2</span><h2>Acceso del cliente</h2></div>
+      <label>Correo del cliente</label><input id="email" type="email" placeholder="cliente@correo.com">
+      <label>Contraseña (mín. 6)</label><input id="pass" type="text" placeholder="una contraseña para entregarle">
+      <div class="hint">Se la entregas tú al cliente para que entre a su panel.</div>
+    </div>
+    <div class="card">
+      <div class="step"><span class="num">3</span><h2>Conectar su número <span class="opt">· opcional</span></h2></div>
+      <label>Phone number ID de WhatsApp</label><input id="pnid" placeholder="Lo puedes dejar vacío y conectarlo después">
+      <div class="hint">Si aún no tienes el ID del número, déjalo vacío. Lo enlazas luego desde Ajustes.</div>
+    </div>
+    <button id="go">Crear cliente</button>
+    <div class="msg" id="msg"></div>
+  </div>
+  <div id="done" style="display:none"></div>
+</div>
+<script>
+  var $=function(id){return document.getElementById(id)};
+  $('go').onclick=async function(){
+    var msg=$('msg'); msg.textContent='Creando...'; msg.style.color='#64748b'; $('go').disabled=true;
+    try{
+      var body={ nombre:$('nombre').value, tipo_negocio:$('tipo').value, moneda:$('moneda').value, email:$('email').value, password:$('pass').value, phone_number_id:$('pnid').value };
+      var r=await fetch('/api/admin/onboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      var d=await r.json();
+      if(!r.ok) throw new Error(d.error||'No se pudo crear.');
+      $('form').style.display='none';
+      $('done').style.display='block';
+      $('done').innerHTML='<div class="ok"><div style="font-size:16px;font-weight:800;margin-bottom:8px">✓ Cliente creado</div>'+
+        '<div style="font-size:13.5px;line-height:1.7">Negocio <b>'+($('nombre').value)+'</b> listo.<br>Entrégale al cliente:<br>• Correo: <b>'+($('email').value)+'</b><br>• Contraseña: <b>'+($('pass').value)+'</b><br>• Entra en: <b>/login</b></div>'+
+        '<div style="margin-top:14px"><a href="/admin/nuevo">+ Crear otro cliente</a> &nbsp;·&nbsp; <a href="/admin/cuentas">Ver cuentas</a></div></div>';
+    }catch(e){ msg.textContent=e.message; msg.style.color='#b91c1c'; $('go').disabled=false; }
+  };
 </script></body></html>`;
 }
 

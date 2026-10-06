@@ -109,6 +109,39 @@ export function saveTenantConfig(id: string, business: Business, menu: MenuItem[
   return tenant;
 }
 
+/** Genera un id (slug) unico a partir del nombre del negocio. */
+export function uniqueTenantId(nombre: string): string {
+  const base =
+    nombre
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "negocio";
+  let id = base;
+  let n = 2;
+  while (tenants.has(id)) id = `${base}-${n++}`;
+  return id;
+}
+
+/**
+ * Crea un negocio NUEVO desde la app (onboarding). A diferencia de saveTenantConfig,
+ * no exige que exista una carpeta en disco: el negocio vive en memoria y se respalda
+ * en Postgres (kv "tenants"), que es la fuente de verdad en Render.
+ */
+export function createTenant(id: string, business: Business, menu: MenuItem[]): Tenant {
+  if (tenants.has(id)) throw new Error(`Ya existe un negocio con id "${id}".`);
+  business.id = id;
+  const tenant: Tenant = { id, business, menu, systemPrompt: buildSystemPrompt(business, menu) };
+  tenants.set(id, tenant);
+  rebuildIndex();
+  dbOverrides[id] = { business, menu };
+  kvSet("tenants", dbOverrides);
+  console.log(`[tenants] negocio NUEVO creado: "${id}" (${business.nombre}).`);
+  return tenant;
+}
+
 console.log(`[tenants] Cargados ${tenants.size}: ${[...tenants.keys()].join(", ") || "(ninguno)"}`);
 
 /** Busca un tenant por su id (nombre de carpeta). */
