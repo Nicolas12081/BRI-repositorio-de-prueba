@@ -150,12 +150,12 @@ window.addEventListener('load', function(){
 
     <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 8px;border-top:1px solid #eceef3">
       <div style="position:relative;flex:none">
-        <div style="width:36px;height:36px;border-radius:50%;background:#c7cdd9;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px">ML</div>
+        <div style="width:36px;height:36px;border-radius:50%;background:#c7cdd9;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px">{{ acctInitials }}</div>
         <span style="position:absolute;left:-1px;top:-1px;width:10px;height:10px;border-radius:50%;background:#22c55e;border:2px solid #fbfbfd"></span>
       </div>
       <div style="min-width:0;line-height:1.25">
-        <div style="font-size:13px;font-weight:700;color:#1f2937">María López</div>
-        <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">maria@bri.chat</div>
+        <div style="font-size:13px;font-weight:700;color:#1f2937">{{ acctName }}</div>
+        <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ acctEmail }}</div>
       </div>
     </div>
   </div>
@@ -1404,6 +1404,8 @@ class Component extends DCLogic {
     actDelay: 5,
     actUnit: "Días",
     actOffice: false,
+    acctName: "",
+    acctEmail: "",
     ciLogo: null,
     ciGenLoading: false,
     ciFallback: true,
@@ -1594,6 +1596,8 @@ class Component extends DCLogic {
   // ===== Integracion con el backend real de Bri (WhatsApp + datos reales) =====
   async loadReal(){
     try{
+      // Correo del usuario que inicio sesion (para el chip del perfil, no texto de prueba).
+      if(!this._meLoaded){ this._meLoaded=true; fetch('/api/me').then(r=>r.json()).then(me=>{ if(me&&me.email) this.setState({acctEmail:me.email}); }).catch(()=>{}); }
       if(!this.tenantId){
         const wa = await fetch('/api/whatsapp').then(r=>r.json()).catch(()=>({}));
         const linked = (wa.agentes||[]).find(a=>a.phone_number_id);
@@ -1603,7 +1607,7 @@ class Component extends DCLogic {
       // Carga (una vez) el conocimiento real del agente en la pantalla Agente IA.
       if(this.tenantId && !this._cfgLoaded){
         this._cfgLoaded = true;
-        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[]), fileList:(Array.isArray(b.archivos)?b.archivos.map(a=>({id:a.nombre, name:a.nombre, ready:true, chars:(a.texto||'').length})):[])});
+        fetch('/api/tenant?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json()).then(d=>{ if(d&&d.business){ var b=d.business; this.setState({acctName:b.nombre||this.state.acctName, cfgContext:b.contexto||'', qaList:Array.isArray(b.qa)?b.qa:[], insList:Array.isArray(b.instrucciones)?b.instrucciones:[], cfgBotName:b.nombre_bot||this.state.cfgBotName, cfgWelcome:b.bienvenida||this.state.cfgWelcome, cfgTone:b.tono||this.state.cfgTone, cfgHotMin:b.umbral_hot||this.state.cfgHotMin, ciStyle:b.estilo||this.state.ciStyle, ciLang:b.idioma||this.state.ciLang, ciImages:b.enviar_fotos!==false, ciFallback:(typeof b.fallback_asesor==='boolean'?b.fallback_asesor:this.state.ciFallback), ciEscFrust:(typeof b.escalar_frustrado==='boolean'?b.escalar_frustrado:this.state.ciEscFrust), ciEscNoAns:(typeof b.escalar_sin_respuesta==='boolean'?b.escalar_sin_respuesta:this.state.ciEscNoAns), rutRules:Array.isArray(b.reglas_escalamiento)?b.reglas_escalamiento:[], rutEsc:(typeof b.escalamiento_on==='boolean'?b.escalamiento_on:this.state.rutEsc), webDomains:(Array.isArray(b.paginas)?b.paginas.map(p=>({id:p.url, domain:p.url, ready:true, chars:(p.texto||'').length})):[]), fileList:(Array.isArray(b.archivos)?b.archivos.map(a=>({id:a.nombre, name:a.nombre, ready:true, chars:(a.texto||'').length})):[])});
         if(b.activacion){ var m=b.activacion.delay_min||60; var unit=(m%1440===0?'Días':'Horas'); var val=(unit==='Días'?m/1440:Math.round(m/60)); this.setState({actEnabled:!!b.activacion.on, actDelay:val, actUnit:unit, actOffice:!!b.activacion.solo_horario}); } } }).catch(()=>{});
       }
       const data = await fetch('/api/conversations?tenantId='+encodeURIComponent(this.tenantId)).then(r=>r.json());
@@ -2127,6 +2131,9 @@ Todo en español, textos breves.`;
     }).sort((a,b)=>b.conv-a.conv);
 
     return {
+      acctName: s.acctName || "Mi negocio",
+      acctEmail: s.acctEmail || "",
+      acctInitials: this.initials(s.acctName || "Bri"),
       bars, ranges, chartTotal, pautaStats,
       groups, hotCount:counts.hot, warmCount:counts.warm, coldCount:counts.cold,
       sel, msgs, typing:s.typing, draft:s.draft, suggestions,

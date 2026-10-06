@@ -104,15 +104,9 @@ app.get("/admin/cuentas", (_req: Request, res: Response) => {
 // Diseno oficial de Bri (el export del usuario) servido tal cual en /bri.
 app.use("/bri", express.static(path.join(__dirname, "..", "bri-app")));
 
-// Salud del servidor
+// Landing page publica (pagina de ventas de Bri). Sirve el archivo landing.html.
 app.get("/", (_req: Request, res: Response) => {
-  res.type("html").send(
-    `<p>Chatbot multi-negocio activo.</p><ul>` +
-      `<li><a href="/bri/">Bri — diseño oficial (con IA real)</a></li>` +
-      `<li><a href="/console">Consola conectada (WhatsApp + datos reales)</a></li>` +
-      `<li><a href="/chat">Chat de prueba estilo WhatsApp</a></li>` +
-      `<li><a href="/admin">Panel de pedidos y reservas</a></li></ul>`
-  );
+  res.sendFile(path.join(__dirname, "..", "landing.html"));
 });
 
 // Politica de privacidad publica. Meta exige una URL de politica de privacidad
